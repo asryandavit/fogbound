@@ -1,0 +1,60 @@
+name: fogbound
+
+version: "3.8"
+
+services:
+  fogbound_db:
+    image: postgres:17-alpine
+    container_name: fogbound_db
+    env_file:
+      - .env
+    ports:
+      - "5444:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - fogbound_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - fogbound_network
+
+  fogbound_cache:
+    image: redis:7-alpine
+    container_name: fogbound_cache
+    env_file:
+      - .env
+    ports:
+      - "6399:6379"
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD}",
+        "--appendonly",
+        "yes",
+      ]
+    volumes:
+      - fogbound_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - fogbound_network
+
+networks:
+  fogbound_network:
+    driver: bridge
+
+volumes:
+  fogbound_db_data:
+  fogbound_redis_data:
