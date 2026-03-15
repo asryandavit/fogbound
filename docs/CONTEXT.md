@@ -38,10 +38,10 @@ fogbound/
 └── game/            ← Unity project
 
 ## Port Assignments (Never Change These)
-- PostgreSQL:  5437
-- Redis:       6380
-- NestJS:      3001
-- Colyseus:    2567
+- PostgreSQL:  5444
+- Redis:       6399
+- NestJS:      3007
+- Colyseus:    2577
 
 ## Database Rules
 - Migration tool: node-pg-migrate
