@@ -45,10 +45,13 @@ fogbound/
 
 ## Database Rules
 - Migration tool: node-pg-migrate
+- ORM: Drizzle (for queries and type safety)
 - Every table discussed and approved before creation
 - Every migration is a separate numbered file
 - Seeds folder contains initial data only
-- Never edit an existing migration — always create a new one
+- Never edit an existing migration file
+- Always create a new migration for changes
+- Drizzle schema must reflect migration structure
 
 ## Coding Rules
 - Always use latest stable versions of all libraries
