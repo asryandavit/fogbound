@@ -47,3 +47,16 @@ describes the core fog of war mechanic.
 Decision: Unity never calculates or stores game state
 Reason: Anti-cheat, single source of truth, clean
 reconnection, all logic testable without Unity.
+
+## 009 — ORM: Drizzle
+Decision: Use Drizzle ORM alongside node-pg-migrate
+Reason: Best TypeScript support, lightweight, feels
+like writing SQL, works perfectly with node-pg-migrate,
+fastest growing ORM in 2025, easy to debug, perfect
+fit for NestJS. No magic, full control.
+
+## 010 — Migration Strategy
+Decision: node-pg-migrate for structure, Drizzle for queries
+Reason: Clean separation. Migrations control DB structure
+with pure SQL control. Drizzle handles all queries with
+full type safety. They work together without conflicts.
