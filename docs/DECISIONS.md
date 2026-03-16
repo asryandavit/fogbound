@@ -60,3 +60,22 @@ Decision: node-pg-migrate for structure, Drizzle for queries
 Reason: Clean separation. Migrations control DB structure
 with pure SQL control. Drizzle handles all queries with
 full type safety. They work together without conflicts.
+
+## 011 — Bot Replacement Logic
+Decision: Bot replaces disconnected player after 3 moves
+Reason: Gives player enough time to reconnect without
+disrupting match flow. 3 moves is roughly 3-4 minutes
+depending on map timer. Other players never notified
+to preserve seamless experience.
+
+## 012 — Reconnection Score Handling
+Decision: Bot moves count toward player score on reconnect
+Reason: Fairer to player. Disconnection is often accidental
+(phone call, network drop). Player should not be punished
+for moves made on their behalf.
+
+## 013 — Match Board State in PostgreSQL
+Decision: Save full board state as jsonb every turn
+Reason: Allows complete reconnection recovery even if
+Colyseus server restarts. Critical for production game
+where server crashes would otherwise lose active matches.

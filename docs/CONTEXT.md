@@ -68,3 +68,16 @@ fogbound/
 - Docker not yet configured
 - No tables created yet
 - Unity project not yet created
+
+## Bot & Reconnection Rules
+- When player disconnects bot takes over immediately
+- After bot makes 3 moves player is permanently replaced
+- Other players are never notified of any change
+- Server tracks human vs bot count internally in Colyseus
+- If player reconnects before 3 bot moves they take control back
+- Bot moves count toward player score if player reconnects
+- If player reconnects after 3 bot moves they get zero rewards
+- When ALL players are bots match ends immediately
+- Abandoned match has no winner and no rewards for anyone
+- Disconnection events are NOT stored in database
+- This logic lives entirely in Colyseus GameRoom
