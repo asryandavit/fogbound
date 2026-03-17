@@ -79,3 +79,23 @@ Decision: Save full board state as jsonb every turn
 Reason: Allows complete reconnection recovery even if
 Colyseus server restarts. Critical for production game
 where server crashes would otherwise lose active matches.
+
+## 014 — Leaderboard Types
+Decision: Global + per map leaderboards, all time only
+Reason: Simple and clear for launch. Weekly, seasonal
+and friends leaderboards can be added in future updates
+without breaking existing structure.
+
+## 015 — Ranking Points System
+Decision: Points based ranking not wins only
+1st place: 100, 2nd: 60, 3rd: 30, 4th: 10
+Bonus: gems +5, coins +1, kills +3, 
+win streak +10, perfect match +20
+Reason: Fairer system, rewards all positions,
+encourages strategic play not just winning.
+
+## 016 — Bonus Points Future
+Decision: Bonus points system must be extensible
+Reason: In future we need ability to add new bonus
+point types including negative points for penalties.
+Bonus points config should be data driven not hardcoded.
