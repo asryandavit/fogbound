@@ -85,32 +85,32 @@ exports.up = (pgm) => {
   pgm.addConstraint(
     'players',
     'players_status_check',
-    `status IN ('active', 'suspended', 'banned')`
+    { check: `status IN ('active', 'suspended', 'banned')` }
   );
   pgm.addConstraint(
     'players',
     'players_auth_provider_check',
-    `auth_provider IN ('google', 'apple')`
+    { check: `auth_provider IN ('google', 'apple')` }
   );
   pgm.addConstraint(
     'players',
     'players_level_check',
-    'level > 0'
+    { check: 'level > 0' }
   );
   pgm.addConstraint(
     'players',
     'players_xp_check',
-    'xp >= 0'
+    { check: 'xp >= 0' }
   );
   pgm.addConstraint(
     'players',
     'players_coins_check',
-    'coins >= 0'
+    { check: 'coins >= 0' }
   );
   pgm.addConstraint(
     'players',
     'players_gems_check',
-    'gems >= 0'
+    { check: 'gems >= 0' }
   );
 };
 

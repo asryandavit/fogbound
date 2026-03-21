@@ -76,19 +76,19 @@ exports.up = (pgm) => {
   pgm.addConstraint(
     'notifications',
     'notifications_type_check',
-    `type IN ('match_invite', 'match_result', 'purchase_complete', 'system')`
+    { check: `type IN ('match_invite', 'match_result', 'purchase_complete', 'system')` }
   );
   // read_at must be null when is_read is false
   pgm.addConstraint(
     'notifications',
     'notifications_read_at_unread_check',
-    'is_read = true OR read_at IS NULL'
+    { check: 'is_read = true OR read_at IS NULL' }
   );
   // read_at must not be null when is_read is true
   pgm.addConstraint(
     'notifications',
     'notifications_read_at_read_check',
-    'is_read = false OR read_at IS NOT NULL'
+    { check: 'is_read = false OR read_at IS NOT NULL' }
   );
 };
 

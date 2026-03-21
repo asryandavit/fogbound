@@ -98,51 +98,51 @@ exports.up = (pgm) => {
   pgm.addConstraint(
     'shop_items',
     'shop_items_type_check',
-    `type IN ('gem_package', 'coin_package')`
+    { check: `type IN ('gem_package', 'coin_package')` }
   );
   pgm.addConstraint(
     'shop_items',
     'shop_items_currency_check',
-    `currency IN ('real_money', 'gems')`
+    { check: `currency IN ('real_money', 'gems')` }
   );
   pgm.addConstraint(
     'shop_items',
     'shop_items_reward_type_check',
-    `reward_type IN ('gems', 'coins')`
+    { check: `reward_type IN ('gems', 'coins')` }
   );
-  pgm.addConstraint('shop_items', 'shop_items_price_check', 'price > 0');
-  pgm.addConstraint('shop_items', 'shop_items_reward_amount_check', 'reward_amount > 0');
-  pgm.addConstraint('shop_items', 'shop_items_sort_order_check', 'sort_order >= 0');
+  pgm.addConstraint('shop_items', 'shop_items_price_check', { check: 'price > 0' });
+  pgm.addConstraint('shop_items', 'shop_items_reward_amount_check', { check: 'reward_amount > 0' });
+  pgm.addConstraint('shop_items', 'shop_items_sort_order_check', { check: 'sort_order >= 0' });
 
   // store_product_id must be set for real money purchases
   pgm.addConstraint(
     'shop_items',
     'shop_items_store_product_id_required_check',
-    `currency != 'real_money' OR store_product_id IS NOT NULL`
+    { check: `currency != 'real_money' OR store_product_id IS NOT NULL` }
   );
 
   // gem_package must use real_money currency and reward gems
   pgm.addConstraint(
     'shop_items',
     'shop_items_gem_package_currency_check',
-    `type != 'gem_package' OR currency = 'real_money'`
+    { check: `type != 'gem_package' OR currency = 'real_money'` }
   );
   pgm.addConstraint(
     'shop_items',
     'shop_items_gem_package_reward_check',
-    `type != 'gem_package' OR reward_type = 'gems'`
+    { check: `type != 'gem_package' OR reward_type = 'gems'` }
   );
 
   // coin_package must use gems currency and reward coins
   pgm.addConstraint(
     'shop_items',
     'shop_items_coin_package_currency_check',
-    `type != 'coin_package' OR currency = 'gems'`
+    { check: `type != 'coin_package' OR currency = 'gems'` }
   );
   pgm.addConstraint(
     'shop_items',
     'shop_items_coin_package_reward_check',
-    `type != 'coin_package' OR reward_type = 'coins'`
+    { check: `type != 'coin_package' OR reward_type = 'coins'` }
   );
 };
 

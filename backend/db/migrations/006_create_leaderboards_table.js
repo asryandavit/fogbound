@@ -102,35 +102,35 @@ exports.up = (pgm) => {
   pgm.addConstraint(
     'leaderboards',
     'leaderboards_scope_check',
-    `scope IN ('global', 'map')`
+    { check: `scope IN ('global', 'map')` }
   );
-  pgm.addConstraint('leaderboards', 'leaderboards_total_points_check', 'total_points >= 0');
-  pgm.addConstraint('leaderboards', 'leaderboards_matches_played_check', 'matches_played >= 0');
-  pgm.addConstraint('leaderboards', 'leaderboards_matches_won_check', 'matches_won >= 0');
+  pgm.addConstraint('leaderboards', 'leaderboards_total_points_check', { check: 'total_points >= 0' });
+  pgm.addConstraint('leaderboards', 'leaderboards_matches_played_check', { check: 'matches_played >= 0' });
+  pgm.addConstraint('leaderboards', 'leaderboards_matches_won_check', { check: 'matches_won >= 0' });
   pgm.addConstraint(
     'leaderboards',
     'leaderboards_matches_consistency_check',
-    'matches_won <= matches_played'
+    { check: 'matches_won <= matches_played' }
   );
   pgm.addConstraint(
     'leaderboards',
     'leaderboards_rank_check',
-    'rank IS NULL OR rank > 0'
+    { check: 'rank IS NULL OR rank > 0' }
   );
   pgm.addConstraint(
     'leaderboards',
     'leaderboards_previous_rank_check',
-    'previous_rank IS NULL OR previous_rank > 0'
+    { check: 'previous_rank IS NULL OR previous_rank > 0' }
   );
   pgm.addConstraint(
     'leaderboards',
     'leaderboards_map_scope_map_id_check',
-    `scope != 'map' OR map_id IS NOT NULL`
+    { check: `scope != 'map' OR map_id IS NOT NULL` }
   );
   pgm.addConstraint(
     'leaderboards',
     'leaderboards_global_scope_map_id_check',
-    `scope != 'global' OR map_id IS NULL`
+    { check: `scope != 'global' OR map_id IS NULL` }
   );
 };
 

@@ -133,32 +133,32 @@ exports.up = (pgm) => {
   pgm.addConstraint('match_players', 'match_players_match_color_unique', 'UNIQUE (match_id, team_color)');
 
   // Check constraints
-  pgm.addConstraint('match_players', 'match_players_slot_number_check', 'slot_number IN (1, 2, 3, 4)');
+  pgm.addConstraint('match_players', 'match_players_slot_number_check', { check: 'slot_number IN (1, 2, 3, 4)' });
   pgm.addConstraint(
     'match_players',
     'match_players_team_color_check',
-    `team_color IN ('red', 'blue', 'green', 'yellow')`
+    { check: `team_color IN ('red', 'blue', 'green', 'yellow')` }
   );
   pgm.addConstraint(
     'match_players',
     'match_players_bot_difficulty_check',
-    `bot_difficulty IS NULL OR bot_difficulty IN ('easy', 'medium', 'hard')`
+    { check: `bot_difficulty IS NULL OR bot_difficulty IN ('easy', 'medium', 'hard')` }
   );
   pgm.addConstraint(
     'match_players',
     'match_players_result_check',
-    `result IS NULL OR result IN ('won', 'lost', 'abandoned')`
+    { check: `result IS NULL OR result IN ('won', 'lost', 'abandoned')` }
   );
-  pgm.addConstraint('match_players', 'match_players_final_score_check', 'final_score >= 0');
-  pgm.addConstraint('match_players', 'match_players_gems_collected_check', 'gems_collected >= 0');
-  pgm.addConstraint('match_players', 'match_players_coins_collected_check', 'coins_collected >= 0');
-  pgm.addConstraint('match_players', 'match_players_kills_check', 'kills >= 0');
-  pgm.addConstraint('match_players', 'match_players_deaths_check', 'deaths >= 0');
-  pgm.addConstraint('match_players', 'match_players_treasures_banked_check', 'treasures_banked >= 0');
+  pgm.addConstraint('match_players', 'match_players_final_score_check', { check: 'final_score >= 0' });
+  pgm.addConstraint('match_players', 'match_players_gems_collected_check', { check: 'gems_collected >= 0' });
+  pgm.addConstraint('match_players', 'match_players_coins_collected_check', { check: 'coins_collected >= 0' });
+  pgm.addConstraint('match_players', 'match_players_kills_check', { check: 'kills >= 0' });
+  pgm.addConstraint('match_players', 'match_players_deaths_check', { check: 'deaths >= 0' });
+  pgm.addConstraint('match_players', 'match_players_treasures_banked_check', { check: 'treasures_banked >= 0' });
   pgm.addConstraint(
     'match_players',
     'match_players_replaced_at_turn_check',
-    'replaced_at_turn IS NULL OR replaced_at_turn > 0'
+    { check: 'replaced_at_turn IS NULL OR replaced_at_turn > 0' }
   );
 };
 

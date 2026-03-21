@@ -116,32 +116,32 @@ exports.up = (pgm) => {
   pgm.addConstraint(
     'matches',
     'matches_status_check',
-    `status IN ('pending', 'in_progress', 'completed', 'abandoned')`
+    { check: `status IN ('pending', 'in_progress', 'completed', 'abandoned')` }
   );
   pgm.addConstraint(
     'matches',
     'matches_win_condition_check',
-    `win_condition IN ('time_limit', 'all_treasure', 'points_target')`
+    { check: `win_condition IN ('time_limit', 'all_treasure', 'points_target')` }
   );
   pgm.addConstraint(
     'matches',
     'matches_current_turn_check',
-    'current_turn >= 0'
+    { check: 'current_turn >= 0' }
   );
   pgm.addConstraint(
     'matches',
     'matches_human_player_count_check',
-    'human_player_count >= 0'
+    { check: 'human_player_count >= 0' }
   );
   pgm.addConstraint(
     'matches',
     'matches_duration_seconds_check',
-    'duration_seconds IS NULL OR duration_seconds > 0'
+    { check: 'duration_seconds IS NULL OR duration_seconds > 0' }
   );
   pgm.addConstraint(
     'matches',
     'matches_points_target_check',
-    'points_target IS NULL OR points_target > 0'
+    { check: 'points_target IS NULL OR points_target > 0' }
   );
 };
 

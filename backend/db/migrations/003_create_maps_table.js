@@ -119,54 +119,54 @@ exports.up = (pgm) => {
   pgm.addConstraint(
     'maps',
     'maps_grid_rows_check',
-    'grid_rows IN (7, 9, 11, 13, 15, 17)'
+    { check: 'grid_rows IN (7, 9, 11, 13, 15, 17)' }
   );
   pgm.addConstraint(
     'maps',
     'maps_grid_cols_check',
-    'grid_cols IN (7, 9, 11, 13, 15, 17)'
+    { check: 'grid_cols IN (7, 9, 11, 13, 15, 17)' }
   );
   pgm.addConstraint(
     'maps',
     'maps_min_players_check',
-    'min_players >= 2'
+    { check: 'min_players >= 2' }
   );
   pgm.addConstraint(
     'maps',
     'maps_max_players_check',
-    'max_players <= 4'
+    { check: 'max_players <= 4' }
   );
   pgm.addConstraint(
     'maps',
     'maps_player_range_check',
-    'min_players <= max_players'
+    { check: 'min_players <= max_players' }
   );
   pgm.addConstraint(
     'maps',
     'maps_explorers_per_player_check',
-    'explorers_per_player IN (1, 2, 3)'
+    { check: 'explorers_per_player IN (1, 2, 3)' }
   );
   pgm.addConstraint(
     'maps',
     'maps_win_condition_check',
-    `win_condition IN ('time_limit', 'all_treasure', 'points_target')`
+    { check: `win_condition IN ('time_limit', 'all_treasure', 'points_target')` }
   );
   pgm.addConstraint(
     'maps',
     'maps_turn_timer_seconds_check',
-    'turn_timer_seconds > 0'
+    { check: 'turn_timer_seconds > 0' }
   );
   pgm.addConstraint(
     'maps',
     'maps_points_target_check',
-    'points_target IS NULL OR points_target > 0'
+    { check: 'points_target IS NULL OR points_target > 0' }
   );
   pgm.addConstraint(
     'maps',
     'maps_points_target_required_check',
-    `win_condition != 'points_target' OR points_target IS NOT NULL`
+    { check: `win_condition != 'points_target' OR points_target IS NOT NULL` }
   );
-  pgm.addConstraint('maps', 'maps_tier_check', 'tier IN (1, 2, 3)');
+  pgm.addConstraint('maps', 'maps_tier_check', { check: 'tier IN (1, 2, 3)' });
 };
 
 /**

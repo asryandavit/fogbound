@@ -87,22 +87,22 @@ exports.up = (pgm) => {
   pgm.createIndex('player_stats', 'player_id', { unique: true });
 
   // Check constraints: all integer stats must be >= 0
-  pgm.addConstraint('player_stats', 'player_stats_matches_played_check', 'matches_played >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_matches_won_check', 'matches_won >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_matches_lost_check', 'matches_lost >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_total_playtime_check', 'total_playtime >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_total_treasure_check', 'total_treasure >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_total_kills_check', 'total_kills >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_total_deaths_check', 'total_deaths >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_highest_score_check', 'highest_score >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_win_streak_check', 'win_streak >= 0');
-  pgm.addConstraint('player_stats', 'player_stats_best_win_streak_check', 'best_win_streak >= 0');
+  pgm.addConstraint('player_stats', 'player_stats_matches_played_check', { check: 'matches_played >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_matches_won_check', { check: 'matches_won >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_matches_lost_check', { check: 'matches_lost >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_total_playtime_check', { check: 'total_playtime >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_total_treasure_check', { check: 'total_treasure >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_total_kills_check', { check: 'total_kills >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_total_deaths_check', { check: 'total_deaths >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_highest_score_check', { check: 'highest_score >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_win_streak_check', { check: 'win_streak >= 0' });
+  pgm.addConstraint('player_stats', 'player_stats_best_win_streak_check', { check: 'best_win_streak >= 0' });
 
   // Check constraint: wins + losses cannot exceed total matches played
   pgm.addConstraint(
     'player_stats',
     'player_stats_matches_consistency_check',
-    'matches_won + matches_lost <= matches_played'
+    { check: 'matches_won + matches_lost <= matches_played' }
   );
 };
 
