@@ -52,12 +52,14 @@
     <Compile Include="Assets/_Game/Scripts/Core/CameraController.cs" />
     <Compile Include="Assets/_Game/Scripts/Board/TileData.cs" />
     <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerManager.cs" />
+    <Compile Include="Assets/_Game/Scripts/Network/GameStateSync.cs" />
     <Compile Include="Assets/_Game/Scripts/Core/TurnManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerData.cs" />
     <Compile Include="Assets/_Game/Scripts/Board/BoardManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Core/GameManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Board/FogOfWarManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerController.cs" />
+    <Compile Include="Assets/_Game/Scripts/Network/NetworkManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">
@@ -1240,6 +1242,10 @@
       <HintPath>Library/ScriptAssemblies/Unity.2D.Aseprite.Common.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Colyseus.Editor">
+      <HintPath>Library/ScriptAssemblies/Colyseus.Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.Rider.Editor">
       <HintPath>Library/ScriptAssemblies/Unity.Rider.Editor.dll</HintPath>
       <Private>False</Private>
@@ -1250,6 +1256,10 @@
     </Reference>
     <Reference Include="Unity.2D.Psdimporter.Editor">
       <HintPath>Library/ScriptAssemblies/Unity.2D.Psdimporter.Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ColyseusSDK">
+      <HintPath>Library/ScriptAssemblies/ColyseusSDK.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.RenderPipelines.Core.Runtime">
@@ -1286,6 +1296,10 @@
     </Reference>
     <Reference Include="Unity.2D.SpriteShape.Runtime">
       <HintPath>Library/ScriptAssemblies/Unity.2D.SpriteShape.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Colyseus.Editor.Tests">
+      <HintPath>Library/ScriptAssemblies/Colyseus.Editor.Tests.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.VisualStudio.Editor">
