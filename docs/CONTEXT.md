@@ -81,3 +81,26 @@ fogbound/
 - Abandoned match has no winner and no rewards for anyone
 - Disconnection events are NOT stored in database
 - This logic lives entirely in Colyseus GameRoom
+
+## Backend Current State
+- NestJS 11, TypeScript, node16/node16 module resolution
+- tsconfig: module node16, moduleResolution node16
+- No ignoreDeprecations needed
+- ValidationPipe enabled globally in main.ts
+- DatabaseModule and AuthModule already built and working
+- Drizzle ORM pattern: this.databaseService.db
+- JWT guard: import from ../auth/jwt-auth.guard
+- JWT payload: { playerId: string, username: string }
+- Access via @Request() req → req.user.playerId
+- All modules follow same pattern:
+  imports DatabaseModule and AuthModule
+  exports its own Service
+- Port: 3007 (from process.env.PORT ?? 3007)
+- class-validator and class-transformer installed
+- google-auth-library, passport, passport-jwt installed
+
+## Known Issues Resolved
+- moduleResolution node10 deprecated → use node16
+- ignoreDeprecations 6.0 not supported in TS 5.9 → removed
+- baseUrl deprecated → removed from tsconfig
+- Missing dto folders → always mkdir -p before touch

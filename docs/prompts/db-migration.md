@@ -1,5 +1,15 @@
 # FOGBOUND — Database Migration Prompts
 
+## Global Rule for All Prompts
+Always check the generated file for TypeScript errors
+after creating it. If any errors exist fix them before
+finishing. The project uses:
+- module: node16
+- moduleResolution: node16  
+- strictNullChecks: true
+- noImplicitAny: false
+- NestJS 11 with TypeScript 5.9.x
+
 ## Template 1 — Create New Table Migration
 
 Use this template when creating a new table migration.
