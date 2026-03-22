@@ -51,10 +51,13 @@
   <ItemGroup>
     <Compile Include="Assets/_Game/Scripts/Core/CameraController.cs" />
     <Compile Include="Assets/_Game/Scripts/Board/TileData.cs" />
+    <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Core/TurnManager.cs" />
+    <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerData.cs" />
     <Compile Include="Assets/_Game/Scripts/Board/BoardManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Core/GameManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Board/FogOfWarManager.cs" />
+    <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerController.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">
