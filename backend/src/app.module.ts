@@ -9,6 +9,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { ShopModule } from './shop/shop.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ShopModule } from './shop/shop.module';
     MatchesModule,
     LeaderboardModule,
     ShopModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
