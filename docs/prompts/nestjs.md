@@ -3,8 +3,11 @@
 ## Global Rules
 Always check generated files for TypeScript errors
 and fix them before finishing.
+Always check generated files for ESLint errors
+and fix them before finishing.
 Project uses module: node16, moduleResolution: node16
 strictNullChecks: true, NestJS 11, TypeScript 5.9.x
+ESLint with prettier is configured in the project.
 
 ## Template 1 — Create Service
 ---

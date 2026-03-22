@@ -3,8 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { MapsModule } from './maps/maps.module';
+import { PlayersModule } from './players/players.module';
+import { MatchesModule } from './matches/matches.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import { AppService } from './app.service';
     DatabaseModule,
     AuthModule,
     MapsModule,
+    PlayersModule,
+    MatchesModule,
+    LeaderboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],
