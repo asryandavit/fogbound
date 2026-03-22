@@ -8,6 +8,7 @@ import { MatchesModule } from './matches/matches.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { ShopModule } from './shop/shop.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
     PlayersModule,
     MatchesModule,
     LeaderboardModule,
+    ShopModule,
   ],
   controllers: [AppController],
   providers: [AppService],
