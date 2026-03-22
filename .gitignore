@@ -2,3 +2,17 @@
 .DS_Store
 node_modules/
 dist/
+
+# Unity
+game/Library/
+game/Temp/
+game/Logs/
+game/UserSettings/
+game/Builds/
+game/obj/
+game/*.suo
+game/*.tmp
+game/*.user
+game/.vs/
+game/ExportedObj/
+game/memoryCaptures/
