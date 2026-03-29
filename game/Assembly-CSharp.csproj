@@ -53,6 +53,7 @@
     <Compile Include="Assets/_Game/Scripts/Board/TileData.cs" />
     <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Network/GameStateSync.cs" />
+    <Compile Include="Assets/_Game/Scripts/Core/InputManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Core/TurnManager.cs" />
     <Compile Include="Assets/_Game/Scripts/Explorers/ExplorerData.cs" />
     <Compile Include="Assets/_Game/Scripts/Board/BoardManager.cs" />

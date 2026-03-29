@@ -72,7 +72,7 @@ public class TileController : MonoBehaviour
 
     private void OnMouseDown()
     {
-        Debug.Log("Tile clicked at: " + _tileData.gridPosition);
+        InputManager.Instance.OnTileClicked(_tileData.gridPosition);
         // TODO: wire up to input system
     }
 }
