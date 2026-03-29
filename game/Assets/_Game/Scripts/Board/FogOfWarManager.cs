@@ -95,7 +95,11 @@ public class FogOfWarManager : MonoBehaviour
 
         Renderer renderer = fog.GetComponent<Renderer>();
         if (renderer != null)
-            renderer.material.color = fogColor;
+        {
+            Material fogMaterial = new Material(Shader.Find("Sprites/Default"));
+            fogMaterial.color = new Color(0.1f, 0.1f, 0.1f, 1f);
+            renderer.material = fogMaterial;
+        }
 
         _fogObjects[position] = fog;
     }

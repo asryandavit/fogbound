@@ -1,13 +1,17 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.EnhancedTouch;
+using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
+using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 
 public class CameraController : MonoBehaviour
 {
-    [SerializeField] private float strategicZoom = 8f;
+    [SerializeField] private float strategicZoom = 10f;
     [SerializeField] private float actionZoom = 3f;
     [SerializeField] private float zoomSpeed = 5f;
     [SerializeField] private float panSpeed = 10f;
     [SerializeField] private float minZoom = 2f;
-    [SerializeField] private float maxZoom = 12f;
+    [SerializeField] private float maxZoom = 15f;
 
     private Camera _camera;
     private float _targetZoom;
@@ -15,6 +19,16 @@ public class CameraController : MonoBehaviour
     private bool _isDragging;
     private Vector3 _lastPanPosition;
     private Vector3 _boardCenter;
+
+    private void OnEnable()
+    {
+        EnhancedTouchSupport.Enable();
+    }
+
+    private void OnDisable()
+    {
+        EnhancedTouchSupport.Disable();
+    }
 
     private void Start()
     {
@@ -63,17 +77,18 @@ public class CameraController : MonoBehaviour
 
     private void HandlePinchZoom()
     {
-        if (Input.touchCount != 2)
+        var activeTouches = Touch.activeTouches;
+        if (activeTouches.Count != 2)
             return;
 
-        Touch t0 = Input.GetTouch(0);
-        Touch t1 = Input.GetTouch(1);
+        var touch0 = activeTouches[0];
+        var touch1 = activeTouches[1];
 
-        Vector2 t0Prev = t0.position - t0.deltaPosition;
-        Vector2 t1Prev = t1.position - t1.deltaPosition;
+        Vector2 t0Prev = touch0.screenPosition - touch0.delta;
+        Vector2 t1Prev = touch1.screenPosition - touch1.delta;
 
         float prevDist = Vector2.Distance(t0Prev, t1Prev);
-        float currDist = Vector2.Distance(t0.position, t1.position);
+        float currDist = Vector2.Distance(touch0.screenPosition, touch1.screenPosition);
         float delta = prevDist - currDist;
 
         _targetZoom += delta * 0.01f;
@@ -82,41 +97,48 @@ public class CameraController : MonoBehaviour
 
     private void HandlePan()
     {
-        // Mobile single-finger pan
-        if (Input.touchCount == 1)
-        {
-            Touch touch = Input.GetTouch(0);
+        var activeTouches = Touch.activeTouches;
 
-            if (touch.phase == TouchPhase.Began)
+        // Mobile single-finger pan
+        if (activeTouches.Count == 1)
+        {
+            var touch0 = activeTouches[0];
+
+            if (touch0.phase == TouchPhase.Began)
             {
-                _lastPanPosition = touch.position;
+                _lastPanPosition = (Vector3)touch0.screenPosition;
                 _isDragging = true;
             }
-            else if (touch.phase == TouchPhase.Moved && _isDragging)
+            else if (touch0.phase == TouchPhase.Moved && _isDragging)
             {
-                Vector3 delta = touch.position - (Vector2)_lastPanPosition;
+                Vector3 delta = (Vector3)touch0.screenPosition - _lastPanPosition;
                 _targetPosition -= delta * (panSpeed * _camera.orthographicSize * 0.0001f);
-                _lastPanPosition = touch.position;
+                _lastPanPosition = (Vector3)touch0.screenPosition;
             }
-            else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+            else if (touch0.phase == TouchPhase.Ended || touch0.phase == TouchPhase.Canceled)
             {
                 _isDragging = false;
             }
         }
 
         // Mouse drag for editor testing
-        if (Input.GetMouseButtonDown(0))
+        var mouse = Mouse.current;
+        if (mouse == null)
+            return;
+
+        if (mouse.leftButton.wasPressedThisFrame)
         {
-            _lastPanPosition = Input.mousePosition;
+            _lastPanPosition = (Vector3)mouse.position.ReadValue();
             _isDragging = true;
         }
-        else if (Input.GetMouseButton(0) && _isDragging)
+        else if (mouse.leftButton.isPressed && _isDragging)
         {
-            Vector3 delta = Input.mousePosition - _lastPanPosition;
+            Vector3 currentMousePos = (Vector3)mouse.position.ReadValue();
+            Vector3 delta = currentMousePos - _lastPanPosition;
             _targetPosition -= delta * (panSpeed * _camera.orthographicSize * 0.0001f);
-            _lastPanPosition = Input.mousePosition;
+            _lastPanPosition = currentMousePos;
         }
-        else if (Input.GetMouseButtonUp(0))
+        else if (mouse.leftButton.wasReleasedThisFrame)
         {
             _isDragging = false;
         }

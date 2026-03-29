@@ -136,6 +136,7 @@ GameObject:
   - component: {fileID: 40075667}
   - component: {fileID: 40075666}
   - component: {fileID: 40075669}
+  - component: {fileID: 40075670}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -271,6 +272,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 614aaa8b438b342a792d56aa68f8cf05, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InputManager
+--- !u!114 &40075670
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 40075660}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0cf2d557786584b899618980262dbe49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameInitializer
+  testBoardSize: {x: 13, y: 13}
+  testPlayerCount: 2
+  autoStartOnPlay: 1
 --- !u!1 &326832312
 GameObject:
   m_ObjectHideFlags: 0
@@ -371,7 +387,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_BackGroundColor: {r: 0.1, g: 0.1, b: 0.1, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -396,7 +412,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 5
+  orthographic size: 12
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -421,7 +437,7 @@ Transform:
   m_GameObject: {fileID: 2075168486}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -10}
+  m_LocalPosition: {x: 6, y: 6, z: -15}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -439,12 +455,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eb3caec171fbf40c48616afe5f48e5df, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraController
-  strategicZoom: 8
+  strategicZoom: 12
   actionZoom: 3
   zoomSpeed: 5
   panSpeed: 10
   minZoom: 2
-  maxZoom: 12
+  maxZoom: 14
 --- !u!114 &2075168491
 MonoBehaviour:
   m_ObjectHideFlags: 0

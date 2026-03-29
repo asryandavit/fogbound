@@ -28,21 +28,21 @@
 
 ## Board
 
-| Property | Details |
-|---|---|
-| **Map Sizes** | 7×7, 9×9, 11×11, 13×13, 15×15, 17×17 |
+| Property           | Details                                   |
+| ------------------ | ----------------------------------------- |
+| **Map Sizes**      | 7×7, 9×9, 11×11, 13×13, 15×15, 17×17      |
 | **Starting State** | All tiles face down at start (Fog of War) |
 
 ### Terrain Types
 
-| Terrain | Notes |
-|---|---|
-| Grass | Neutral |
-| Jungle | — |
-| Sand | — |
-| Water | — |
-| Ice | — |
-| Desert | — |
+| Terrain | Notes   |
+| ------- | ------- |
+| Grass   | Neutral |
+| Jungle  | —       |
+| Sand    | —       |
+| Water   | —       |
+| Ice     | —       |
+| Desert  | —       |
 
 ---
 
@@ -51,7 +51,18 @@
 ### Starting Positions
 
 - Players start on one side of the map
-- At game start, each player chooses base placement on their own side only
+- At game start, each player chooses base position on their own side only
+- Entire starting row/column is revealed at start
+- No treasure on starting row/column tiles
+- Explorers spawn at the chosen base position
+
+### Player Side Assignment
+
+| Players   | Sides Used                      |
+| --------- | ------------------------------- |
+| 2 players | Opposite sides — top and bottom |
+| 3 players | 3 sides                         |
+| 4 players | All 4 sides                     |
 
 ### Base Types
 
@@ -67,11 +78,11 @@ Base appearance depends on map theme:
 
 ### Explorers per Player
 
-| Map Size | Explorers |
-|---|---|
-| Small — 7×7, 9×9 | 1 explorer |
+| Map Size              | Explorers   |
+| --------------------- | ----------- |
+| Small — 7×7, 9×9      | 1 explorer  |
 | Medium — 11×11, 13×13 | 2 explorers |
-| Large — 15×15, 17×17 | 3 explorers |
+| Large — 15×15, 17×17  | 3 explorers |
 
 ---
 
@@ -97,12 +108,12 @@ Base appearance depends on map theme:
 
 ### Treasure Bag
 
-| Rule | Detail |
-|---|---|
-| **Ownership** | Bag belongs to 1 explorer only |
-| **Capacity with bag** | Max 5 coins + max 2 other items |
-| **On delivery** | Bag disappears when explorer carries treasure back to base |
-| **On attack** | Explorer drops all treasure, bag disappears, explorer returns to base |
+| Rule                  | Detail                                                                |
+| --------------------- | --------------------------------------------------------------------- |
+| **Ownership**         | Bag belongs to 1 explorer only                                        |
+| **Capacity with bag** | Max 5 coins + max 2 other items                                       |
+| **On delivery**       | Bag disappears when explorer carries treasure back to base            |
+| **On attack**         | Explorer drops all treasure, bag disappears, explorer returns to base |
 
 ---
 
@@ -114,9 +125,9 @@ Base appearance depends on map theme:
 
 ### Loot Rules
 
-| Combat Type | Dropped Treasure |
-|---|---|
-| Close combat | Winner takes all dropped treasure immediately |
+| Combat Type     | Dropped Treasure                                           |
+| --------------- | ---------------------------------------------------------- |
+| Close combat    | Winner takes all dropped treasure immediately              |
 | Distance combat | Treasure stays on the tile; anyone entering can collect it |
 
 ---
@@ -153,26 +164,26 @@ Win conditions are **configurable per map**:
 
 ### Tier 1 — Launch Tiles (20 tiles)
 
-| Category | Tiles |
-|---|---|
-| Treasure | Coins, Gems, Legendary Relic |
-| Movement | Tunnel, Boat, Plane |
-| Terrain | Jungle, Quicksand, Ice, Desert |
-| Combat | Sword, Shield, Cannon |
-| Structure | Ancient Ruins, Watchtower, Camp |
-| Events | Fog Storm, Earthquake, Gold Rush, Trading Post |
+| Category  | Tiles                                          |
+| --------- | ---------------------------------------------- |
+| Treasure  | Coins, Gems, Legendary Relic                   |
+| Movement  | Tunnel, Boat, Plane                            |
+| Terrain   | Jungle, Quicksand, Ice, Desert                 |
+| Combat    | Sword, Shield, Cannon                          |
+| Structure | Ancient Ruins, Watchtower, Camp                |
+| Events    | Fog Storm, Earthquake, Gold Rush, Trading Post |
 
 ---
 
 ### Tier 2 — Update Tiles (14 tiles)
 
-| Category | Tiles |
-|---|---|
-| Treasure | Gold Bar, Treasure Chest, Ancient Map |
-| Movement | Horse, Catapult, Teleport |
-| Terrain | Swamp, Volcano, Oasis |
-| Combat | Bear Trap, Mercenary |
-| Structure | Temple, Market, Spy |
+| Category  | Tiles                                 |
+| --------- | ------------------------------------- |
+| Treasure  | Gold Bar, Treasure Chest, Ancient Map |
+| Movement  | Horse, Catapult, Teleport             |
+| Terrain   | Swamp, Volcano, Oasis                 |
+| Combat    | Bear Trap, Mercenary                  |
+| Structure | Temple, Market, Spy                   |
 
 ---
 
@@ -184,12 +195,12 @@ All remaining tiles from the full library.
 
 ### Full Tile Library (48 types)
 
-| Category | Tiles |
-|---|---|
-| **Treasure** | Coins, Gems, Gold Bar, Legendary Relic, Ancient Map, Treasure Chest |
-| **Movement** | Tunnel, Plane, Boat, Horse, Catapult, Secret Path, Teleport |
-| **Combat** | Ambush, Cannon, Bear Trap, Sword, Shield, Sniper Tower, Mercenary |
-| **Terrain** | Jungle, Quicksand, Ice, Desert, Volcano, Swamp, Avalanche, Oasis |
-| **Structure** | Ancient Ruins, Watchtower, Camp, Fortress, Temple, Market, Prison, Shrine |
-| **Events** | Fog Storm, Earthquake, Gold Rush, Pirates Attack, Rescue Mission, Ancient Curse, Lucky Find, Rival Explorer |
-| **Alliance** | Trading Post, Truce Flag, Spy, Sabotage |
+| Category      | Tiles                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Treasure**  | Coins, Gems, Gold Bar, Legendary Relic, Ancient Map, Treasure Chest                                         |
+| **Movement**  | Tunnel, Plane, Boat, Horse, Catapult, Secret Path, Teleport                                                 |
+| **Combat**    | Ambush, Cannon, Bear Trap, Sword, Shield, Sniper Tower, Mercenary                                           |
+| **Terrain**   | Jungle, Quicksand, Ice, Desert, Volcano, Swamp, Avalanche, Oasis                                            |
+| **Structure** | Ancient Ruins, Watchtower, Camp, Fortress, Temple, Market, Prison, Shrine                                   |
+| **Events**    | Fog Storm, Earthquake, Gold Rush, Pirates Attack, Rescue Mission, Ancient Curse, Lucky Find, Rival Explorer |
+| **Alliance**  | Trading Post, Truce Flag, Spy, Sabotage                                                                     |
