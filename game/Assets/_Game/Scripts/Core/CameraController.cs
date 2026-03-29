@@ -6,7 +6,7 @@ using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 
 public class CameraController : MonoBehaviour
 {
-    [SerializeField] private float strategicZoom = 10f;
+    [SerializeField] private float strategicZoom = 12f;
     [SerializeField] private float actionZoom = 3f;
     [SerializeField] private float zoomSpeed = 5f;
     [SerializeField] private float panSpeed = 10f;
@@ -53,7 +53,7 @@ public class CameraController : MonoBehaviour
     public void SetBoardCenter(Vector3 center)
     {
         _boardCenter = center;
-        _targetPosition = new Vector3(center.x, center.y, -10f);
+        _targetPosition = new Vector3(center.x, center.y, -15f);
     }
 
     /// <summary>
@@ -63,7 +63,7 @@ public class CameraController : MonoBehaviour
     public void FocusOnTile(Vector3 tileWorldPos)
     {
         _targetZoom = actionZoom;
-        _targetPosition = new Vector3(tileWorldPos.x, tileWorldPos.y, -10f);
+        _targetPosition = new Vector3(tileWorldPos.x, tileWorldPos.y, -15f);
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public class CameraController : MonoBehaviour
     public void ReturnToStrategicView()
     {
         _targetZoom = strategicZoom;
-        _targetPosition = new Vector3(_boardCenter.x, _boardCenter.y, -10f);
+        _targetPosition = new Vector3(_boardCenter.x, _boardCenter.y, -15f);
     }
 
     private void HandlePinchZoom()

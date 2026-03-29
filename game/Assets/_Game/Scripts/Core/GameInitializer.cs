@@ -40,7 +40,7 @@ public class GameInitializer : MonoBehaviour
         Vector3 boardCenter = new Vector3(
             testBoardSize.x / 2f - 0.5f,
             testBoardSize.y / 2f - 0.5f,
-            -10f);
+            -15f);
         GameObject mainCameraGO = GameObject.Find("Main Camera");
         CameraController cameraController = mainCameraGO.GetComponent<CameraController>();
         cameraController.SetBoardCenter(boardCenter);

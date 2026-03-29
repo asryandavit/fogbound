@@ -125,6 +125,19 @@ public class BoardManager : MonoBehaviour
 
         GameObject tileObject = Instantiate(tilePrefab, worldPosition, Quaternion.identity, boardParent);
         tileObject.name = $"Tile_{position.x}_{position.y}";
+
+        // Grid line background: slightly larger dark square behind the tile
+        GameObject gridBg = new GameObject($"GridBg_{position.x}_{position.y}");
+        gridBg.transform.SetParent(tileObject.transform);
+        gridBg.transform.localPosition = new Vector3(0f, 0f, 0.1f);
+        var bgRenderer = gridBg.AddComponent<SpriteRenderer>();
+        bgRenderer.sprite = tileObject.GetComponent<SpriteRenderer>().sprite;
+        bgRenderer.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+        bgRenderer.sortingOrder = -1;
+
+        // Scale tile sprite slightly smaller to reveal grid lines
+        tileObject.transform.localScale = new Vector3(0.95f, 0.95f, 1f);
+
         _tileObjects[position] = tileObject;
     }
 

@@ -42,7 +42,7 @@ public class TileController : MonoBehaviour
         if (!_tileData.isRevealed)
         {
             _spriteRenderer.sprite = fogSprite;
-            _spriteRenderer.color = normalColor;
+            _spriteRenderer.color = new Color(0.1f, 0.1f, 0.1f, 1f);
             return;
         }
 
@@ -57,7 +57,24 @@ public class TileController : MonoBehaviour
             default:                  _spriteRenderer.sprite = grassSprite;   break;
         }
 
-        _spriteRenderer.color = normalColor;
+        _spriteRenderer.color = GetTerrainColor(_tileData.terrainType);
+    }
+
+    /// <summary>
+    /// Returns the display color for the given terrain type.
+    /// </summary>
+    private Color GetTerrainColor(TerrainType terrain)
+    {
+        return terrain switch
+        {
+            TerrainType.Grass  => new Color(0.5f, 0.8f, 0.4f, 1f),
+            TerrainType.Jungle => new Color(0.2f, 0.5f, 0.2f, 1f),
+            TerrainType.Sand   => new Color(0.9f, 0.8f, 0.5f, 1f),
+            TerrainType.Water  => new Color(0.2f, 0.5f, 0.8f, 1f),
+            TerrainType.Ice    => new Color(0.7f, 0.9f, 1.0f, 1f),
+            TerrainType.Desert => new Color(0.9f, 0.6f, 0.3f, 1f),
+            _                  => Color.white
+        };
     }
 
     /// <summary>
