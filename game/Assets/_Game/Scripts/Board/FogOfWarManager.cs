@@ -7,6 +7,7 @@ public class FogOfWarManager : MonoBehaviour
 
     [SerializeField] private Color fogColor = Color.black;
     [SerializeField] private Color revealedColor = Color.white;
+    [SerializeField] private Transform fogParent;
 
     private HashSet<Vector2Int> _revealedTiles;
     private Dictionary<Vector2Int, GameObject> _fogObjects;
@@ -89,7 +90,7 @@ public class FogOfWarManager : MonoBehaviour
 
         GameObject fog = GameObject.CreatePrimitive(PrimitiveType.Quad);
         fog.transform.position = worldPosition;
-        fog.transform.SetParent(transform);
+        fog.transform.SetParent(fogParent != null ? fogParent : transform);
         fog.name = $"Fog_{position.x}_{position.y}";
 
         Renderer renderer = fog.GetComponent<Renderer>();

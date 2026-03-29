@@ -198,6 +198,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FogOfWarManager
   fogColor: {r: 0, g: 0, b: 0, a: 1}
   revealedColor: {r: 1, g: 1, b: 1, a: 1}
+  fogParent: {fileID: 1313585001}
 --- !u!114 &40075665
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -210,9 +211,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f5186adbefa849b39f3e37792ddd3d8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BoardManager
-  tilePrefab: {fileID: 0}
+  tilePrefab: {fileID: 7520194391915136082, guid: 1ac437b19be2849baad2b74695adb0da, type: 3}
   tileSize: 1
-  boardParent: {fileID: 0}
+  boardParent: {fileID: 326832313}
 --- !u!114 &40075666
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -251,12 +252,74 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: af98ca6272f4d4585b2e4921ba467556, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ExplorerManager
-  explorerPrefab: {fileID: 0}
+  explorerPrefab: {fileID: 8251442188837835639, guid: a50f2f482510843cc9d35515d943e7f6, type: 3}
   teamColors:
   - {r: 1, g: 0, b: 0, a: 1}
   - {r: 0, g: 0, b: 1, a: 1}
   - {r: 0, g: 1, b: 0, a: 1}
   - {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+--- !u!1 &326832312
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 326832313}
+  m_Layer: 0
+  m_Name: Board
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &326832313
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 326832312}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1313585000
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1313585001}
+  m_Layer: 0
+  m_Name: Fog
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1313585001
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1313585000}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2075168486
 GameObject:
   m_ObjectHideFlags: 0
@@ -419,3 +482,5 @@ SceneRoots:
   m_Roots:
   - {fileID: 2075168489}
   - {fileID: 40075662}
+  - {fileID: 326832313}
+  - {fileID: 1313585001}

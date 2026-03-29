@@ -1,0 +1,78 @@
+using UnityEngine;
+
+public class TileController : MonoBehaviour
+{
+    [SerializeField] private Sprite fogSprite;
+    [SerializeField] private Sprite grassSprite;
+    [SerializeField] private Sprite jungleSprite;
+    [SerializeField] private Sprite sandSprite;
+    [SerializeField] private Sprite waterSprite;
+    [SerializeField] private Sprite iceSprite;
+    [SerializeField] private Sprite desertSprite;
+    [SerializeField] private Color selectedColor = Color.yellow;
+    [SerializeField] private Color normalColor = Color.white;
+
+    private TileData _tileData;
+    private SpriteRenderer _spriteRenderer;
+    private bool _isSelected;
+
+    public TileData TileData => _tileData;
+
+    private void Awake()
+    {
+        _spriteRenderer = GetComponent<SpriteRenderer>();
+    }
+
+    /// <summary>
+    /// Initializes the tile controller with the given TileData and refreshes the visual.
+    /// </summary>
+    /// <param name="data">The tile's runtime data.</param>
+    public void Initialize(TileData data)
+    {
+        _tileData = data;
+        UpdateVisual();
+    }
+
+    /// <summary>
+    /// Updates the tile's sprite and color to reflect its current data state.
+    /// Unrevealed tiles show the fog sprite; revealed tiles show their terrain sprite.
+    /// </summary>
+    public void UpdateVisual()
+    {
+        if (!_tileData.isRevealed)
+        {
+            _spriteRenderer.sprite = fogSprite;
+            _spriteRenderer.color = normalColor;
+            return;
+        }
+
+        switch (_tileData.terrainType)
+        {
+            case TerrainType.Grass:   _spriteRenderer.sprite = grassSprite;   break;
+            case TerrainType.Jungle:  _spriteRenderer.sprite = jungleSprite;  break;
+            case TerrainType.Sand:    _spriteRenderer.sprite = sandSprite;    break;
+            case TerrainType.Water:   _spriteRenderer.sprite = waterSprite;   break;
+            case TerrainType.Ice:     _spriteRenderer.sprite = iceSprite;     break;
+            case TerrainType.Desert:  _spriteRenderer.sprite = desertSprite;  break;
+            default:                  _spriteRenderer.sprite = grassSprite;   break;
+        }
+
+        _spriteRenderer.color = normalColor;
+    }
+
+    /// <summary>
+    /// Marks this tile as selected or deselected, updating its highlight color accordingly.
+    /// </summary>
+    /// <param name="selected">True to highlight the tile; false to restore normal color.</param>
+    public void SetSelected(bool selected)
+    {
+        _isSelected = selected;
+        _spriteRenderer.color = _isSelected ? selectedColor : normalColor;
+    }
+
+    private void OnMouseDown()
+    {
+        Debug.Log("Tile clicked at: " + _tileData.gridPosition);
+        // TODO: wire up to input system
+    }
+}
