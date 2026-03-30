@@ -21,6 +21,7 @@ public class GameInitializer : MonoBehaviour
     /// <summary>
     /// Coroutine that sequentially initializes all game systems:
     /// board, fog, camera, explorers, turn manager, local player, and game state.
+    /// All steps run in a single frame to avoid Unity License thread GC issues.
     /// </summary>
     public IEnumerator InitializeGame()
     {
@@ -29,12 +30,10 @@ public class GameInitializer : MonoBehaviour
         // Step 1 - Initialize board
         BoardManager.Instance.InitializeBoard(testBoardSize);
         Debug.Log("Board initialized");
-        yield return null;
 
         // Step 2 - Initialize fog
         FogOfWarManager.Instance.InitializeFog(testBoardSize);
         Debug.Log("Fog initialized");
-        yield return null;
 
         // Step 3 - Set camera
         Vector3 boardCenter = new Vector3(
@@ -42,16 +41,23 @@ public class GameInitializer : MonoBehaviour
             testBoardSize.y / 2f - 0.5f,
             -15f);
         GameObject mainCameraGO = GameObject.Find("Main Camera");
+        if (mainCameraGO == null)
+        {
+            Debug.LogError("Main Camera GameObject not found!");
+            yield break;
+        }
         CameraController cameraController = mainCameraGO.GetComponent<CameraController>();
+        if (cameraController == null)
+        {
+            Debug.LogError("CameraController component not found on Main Camera!");
+            yield break;
+        }
         cameraController.SetBoardCenter(boardCenter);
         Debug.Log("Camera set");
-        yield return null;
 
         // Step 4 - Spawn test explorers
-        // Starting rows revealed inside SpawnTestExplorers
         SpawnTestExplorers();
         Debug.Log("Explorers spawned");
-        yield return null;
 
         // Step 5 - Initialize turn manager
         List<string> playerIds = new List<string>();
@@ -60,7 +66,6 @@ public class GameInitializer : MonoBehaviour
         TurnManager.Instance.InitializePlayers(playerIds);
         TurnManager.Instance.StartTurn();
         Debug.Log("Turn manager initialized");
-        yield return null;
 
         // Step 6 - Set local player
         InputManager.Instance.SetLocalPlayer("player_1");
@@ -70,6 +75,10 @@ public class GameInitializer : MonoBehaviour
         GameManager.Instance.StartGame();
         _isInitialized = true;
         Debug.Log("Game initialized successfully");
+
+        // Single yield at the end — all init runs in Frame 1 to avoid
+        // Unity 6 License thread finalizer crashing play mode between yields.
+        yield return null;
     }
 
     /// <summary>

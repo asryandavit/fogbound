@@ -20,10 +20,7 @@ public class TurnManager : MonoBehaviour
     private void Awake()
     {
         if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+            Destroy(Instance.gameObject);
 
         Instance = this;
     }

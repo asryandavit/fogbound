@@ -13,10 +13,7 @@ public class InputManager : MonoBehaviour
     private void Awake()
     {
         if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
+            Destroy(Instance.gameObject);
 
         Instance = this;
         _validMovePositions = new List<Vector2Int>();
