@@ -141,11 +141,21 @@ public class BoardManager : MonoBehaviour
         _tileObjects[position] = tileObject;
     }
 
-    private void UpdateTileVisual(Vector2Int position)
+    /// <summary>
+    /// Returns the TileController component for the tile GameObject at the given grid position,
+    /// or null if the position has no tile object or no TileController.
+    /// </summary>
+    /// <param name="position">The grid position to look up.</param>
+    public TileController GetTileController(Vector2Int position)
     {
         if (!_tileObjects.TryGetValue(position, out GameObject tileObject))
-            return;
+            return null;
+        return tileObject.GetComponent<TileController>();
+    }
 
-        // TODO: update sprite based on tile type
+    private void UpdateTileVisual(Vector2Int position)
+    {
+        TileController tc = GetTileController(position);
+        tc?.UpdateVisual();
     }
 }

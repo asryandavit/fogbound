@@ -54,6 +54,10 @@ public class FogOfWarManager : MonoBehaviour
         _revealedTiles.Add(position);
         HideFogObject(position);
         BoardManager.Instance.RevealTile(position);
+
+        TileController tc = BoardManager.Instance.GetTileController(position);
+        if (tc != null)
+            tc.UpdateVisual();
     }
 
     /// <summary>

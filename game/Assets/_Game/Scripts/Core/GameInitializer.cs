@@ -81,13 +81,35 @@ public class GameInitializer : MonoBehaviour
         int boardWidth = testBoardSize.x;
         int boardHeight = testBoardSize.y;
 
-        // Reveal entire bottom row for player 1
+        // Reveal entire bottom row for player 1 and assign Grass terrain
         for (int x = 0; x < boardWidth; x++)
+        {
+            TileData bottomTile = BoardManager.Instance.GetTile(x, 0);
+            if (bottomTile != null)
+            {
+                bottomTile.terrainType = TerrainType.Grass;
+                bottomTile.tileType = TileType.Grass;
+                bottomTile.isRevealed = true;
+            }
             FogOfWarManager.Instance.RevealTile(new Vector2Int(x, 0));
+            TileController bottomTc = BoardManager.Instance.GetTileController(new Vector2Int(x, 0));
+            bottomTc?.UpdateVisual();
+        }
 
-        // Reveal entire top row for player 2
+        // Reveal entire top row for player 2 and assign Grass terrain
         for (int x = 0; x < boardWidth; x++)
+        {
+            TileData topTile = BoardManager.Instance.GetTile(x, boardHeight - 1);
+            if (topTile != null)
+            {
+                topTile.terrainType = TerrainType.Grass;
+                topTile.tileType = TileType.Grass;
+                topTile.isRevealed = true;
+            }
             FogOfWarManager.Instance.RevealTile(new Vector2Int(x, boardHeight - 1));
+            TileController topTc = BoardManager.Instance.GetTileController(new Vector2Int(x, boardHeight - 1));
+            topTc?.UpdateVisual();
+        }
 
         // Player 1 base at center-left of bottom row
         int p1BaseX = boardWidth / 2 - 1;
