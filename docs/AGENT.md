@@ -32,457 +32,75 @@ find along the way, and report clearly what you did.
 ---
 
 ## Current Sprint — Session Goal
-Build the Colyseus game server and fix Unity visuals.
+Connect Unity to Colyseus and implement explorer movement.
 By end of session:
-- Colyseus server running on port 2567
-- Unity starting rows showing terrain colors
-- Both services startable without errors
+- Unity NetworkManager connecting to Colyseus on ws://localhost:2567
+- Explorer movement synced end-to-end (client → Colyseus → broadcast)
+- Minimap UI showing fog state
 
 ---
 
-## Task 1 — Fix Unity Visual Issue (starting rows dark)
-
-### Problem
-Starting rows (top and bottom) are dark/black instead
-of showing grass color. Fog quads are covering revealed
-tiles even after RevealTile is called.
-
-### Root Cause
-FogOfWarManager.HideFogObject sets fog inactive but
-TileController.UpdateVisual is not being called after
-reveal, so tiles stay showing fog color.
-
-### Fix Steps
-
-1. Read these files first:
-   game/Assets/_Game/Scripts/Board/FogOfWarManager.cs
-   game/Assets/_Game/Scripts/Board/TileController.cs
-   game/Assets/_Game/Scripts/Board/BoardManager.cs
-   game/Assets/_Game/Scripts/Core/GameInitializer.cs
-
-2. In BoardManager.cs verify GetTileController exists:
-   public TileController GetTileController(Vector2Int pos)
-   If missing add it:
-   gets tileObject from _tileObjects dictionary
-   returns tileObject.GetComponent<TileController>()
-   returns null if not found
-
-3. In FogOfWarManager.RevealTile():
-   After calling HideFogObject(position) add:
-   var tc = BoardManager.Instance?.GetTileController(position)
-   tc?.UpdateVisual()
-
-4. In GameInitializer.SpawnTestExplorers():
-   After revealing all tiles in bottom row loop
-   add a second loop to force UpdateVisual:
-   for (int x = 0; x < boardWidth; x++)
-     var tc = BoardManager.Instance?.GetTileController(
-       new Vector2Int(x, 0))
-     tc?.UpdateVisual()
-   Same for top row (y = boardHeight - 1)
-
-5. In TileController.UpdateVisual():
-   Verify _spriteRenderer is not null
-   Add at top of method:
-   if (_spriteRenderer == null)
-     _spriteRenderer = GetComponent<SpriteRenderer>()
-   if (_spriteRenderer == null) return
-
-6. Save all files
-7. Read Console and fix any errors
-8. Verify in Unity Play mode that rows show green
-
----
-
-## Task 2 — Set Up Colyseus Server
+## Task 1 — Connect Unity NetworkManager to Colyseus
 
 ### Context
-Colyseus server does not exist yet.
-NestJS runs on port 3007.
-Colyseus must run on port 2567.
-Both can run from the same backend/ project.
+Colyseus server is running on port 2567 with GameRoom.
+NetworkManager.cs and GameStateSync.cs are stubs.
+Unity client must send player actions and receive state.
 
 ### Steps
-
-#### Step 2.1 — Install Colyseus
-In terminal from backend/ folder:
-```bash
-npm install colyseus
-npm install @colyseus/schema
-npm install --save-dev @types/node
-```
-
-#### Step 2.2 — Create folder structure
-```bash
-mkdir -p src/colyseus/rooms
-mkdir -p src/colyseus/schemas
-touch src/colyseus/rooms/GameRoom.ts
-touch src/colyseus/schemas/GameState.ts
-touch src/colyseus/schemas/TileSchema.ts
-touch src/colyseus/schemas/ExplorerSchema.ts
-touch src/colyseus/schemas/PlayerSchema.ts
-touch src/colyseus/colyseus.module.ts
-touch src/colyseus/colyseus.server.ts
-```
-
-#### Step 2.3 — Create TileSchema.ts
-```typescript
-import { Schema, type } from '@colyseus/schema'
-
-export class TileSchema extends Schema {
-  @type('number') x: number = 0
-  @type('number') y: number = 0
-  @type('string') tileType: string = 'unknown'
-  @type('boolean') isRevealed: boolean = false
-  @type('string') treasureType: string = 'none'
-  @type('number') treasureValue: number = 0
-  @type('boolean') isOccupied: boolean = false
-}
-```
-
-#### Step 2.4 — Create ExplorerSchema.ts
-```typescript
-import { Schema, type } from '@colyseus/schema'
-
-export class ExplorerSchema extends Schema {
-  @type('string') explorerId: string = ''
-  @type('string') playerId: string = ''
-  @type('number') x: number = 0
-  @type('number') y: number = 0
-  @type('string') state: string = 'idle'
-  @type('number') score: number = 0
-  @type('number') coinCount: number = 0
-  @type('boolean') hasBag: boolean = false
-  @type('boolean') hasBoat: boolean = false
-  @type('boolean') isBot: boolean = false
-  @type('number') botMoveCount: number = 0
-}
-```
-
-#### Step 2.5 — Create PlayerSchema.ts
-```typescript
-import { Schema, type } from '@colyseus/schema'
-
-export class PlayerSchema extends Schema {
-  @type('string') playerId: string = ''
-  @type('string') username: string = ''
-  @type('number') score: number = 0
-  @type('boolean') isBot: boolean = false
-  @type('boolean') isConnected: boolean = true
-  @type('number') slotNumber: number = 0
-  @type('string') teamColor: string = 'red'
-}
-```
-
-#### Step 2.6 — Create GameState.ts
-```typescript
-import { Schema, MapSchema, type } from '@colyseus/schema'
-import { TileSchema } from './TileSchema'
-import { ExplorerSchema } from './ExplorerSchema'
-import { PlayerSchema } from './PlayerSchema'
-
-export class GameState extends Schema {
-  @type('string') status: string = 'pending'
-  @type('number') currentTurn: number = 0
-  @type('string') currentPlayerId: string = ''
-  @type('string') matchId: string = ''
-  @type('string') winCondition: string = 'all_treasure'
-  @type('number') turnTimerSeconds: number = 60
-  @type({ map: TileSchema }) tiles = new MapSchema<TileSchema>()
-  @type({ map: ExplorerSchema }) explorers = new MapSchema<ExplorerSchema>()
-  @type({ map: PlayerSchema }) players = new MapSchema<PlayerSchema>()
-}
-```
-
-#### Step 2.7 — Create GameRoom.ts
-```typescript
-import { Room, Client } from 'colyseus'
-import { GameState } from '../schemas/GameState'
-import { TileSchema } from '../schemas/TileSchema'
-import { ExplorerSchema } from '../schemas/ExplorerSchema'
-import { PlayerSchema } from '../schemas/PlayerSchema'
-
-export class GameRoom extends Room<GameState> {
-  private turnTimer: any = null
-  private botMoveCounts: Map<string, number> = new Map()
-
-  onCreate(options: any) {
-    this.setState(new GameState())
-    this.state.matchId = options.matchId || 
-      `match_${Date.now()}`
-    this.state.winCondition = 
-      options.winCondition || 'all_treasure'
-    this.state.turnTimerSeconds = 
-      options.turnTimerSeconds || 60
-    this.setPatchRate(50)
-    this.initializeBoard(
-      options.gridRows || 13,
-      options.gridCols || 13
-    )
-    this.onMessage('move_explorer', (client, message) => {
-      this.handleMoveExplorer(client, message)
-    })
-    this.onMessage('end_turn', (client, _message) => {
-      this.handleEndTurn(client)
-    })
-    console.log(`GameRoom created: ${this.state.matchId}`)
-  }
-
-  async onJoin(client: Client, options: any) {
-    const playerId = options.playerId || client.sessionId
-    const username = options.username || 'Player'
-    const slotNumber = this.state.players.size
-    const colors = ['red', 'blue', 'green', 'yellow']
-    const player = new PlayerSchema()
-    player.playerId = playerId
-    player.username = username
-    player.slotNumber = slotNumber
-    player.teamColor = colors[slotNumber] || 'red'
-    player.isConnected = true
-    this.state.players.set(playerId, player)
-    console.log(`Player joined: ${username} (${playerId})`)
-    if (this.state.players.size >= 2) {
-      this.startMatch()
-    }
-  }
-
-  async onLeave(client: Client, consented: boolean) {
-    const player = this.findPlayerBySession(client.sessionId)
-    if (!player) return
-    player.isConnected = false
-    console.log(`Player disconnected: ${player.playerId}`)
-    if (!consented) {
-      try {
-        await this.allowReconnection(client, 60)
-        player.isConnected = true
-        console.log(`Player reconnected: ${player.playerId}`)
-      } catch {
-        player.isBot = true
-        this.botMoveCounts.set(player.playerId, 0)
-        console.log(
-          `Player replaced by bot: ${player.playerId}`
-        )
-        this.checkAllBots()
-      }
-    }
-  }
-
-  onDispose() {
-    if (this.turnTimer) clearTimeout(this.turnTimer)
-    console.log(`GameRoom disposed: ${this.state.matchId}`)
-  }
-
-  private initializeBoard(rows: number, cols: number) {
-    for (let x = 0; x < cols; x++) {
-      for (let y = 0; y < rows; y++) {
-        const tile = new TileSchema()
-        tile.x = x
-        tile.y = y
-        tile.tileType = 'grass'
-        tile.isRevealed = false
-        const key = `${x}_${y}`
-        this.state.tiles.set(key, tile)
-      }
-    }
-    this.revealStartingRows(rows, cols)
-  }
-
-  private revealStartingRows(rows: number, cols: number) {
-    for (let x = 0; x < cols; x++) {
-      const bottom = this.state.tiles.get(`${x}_0`)
-      if (bottom) bottom.isRevealed = true
-      const top = this.state.tiles.get(`${x}_${rows - 1}`)
-      if (top) top.isRevealed = true
-    }
-  }
-
-  private startMatch() {
-    this.state.status = 'in_progress'
-    const firstPlayerId = Array.from(
-      this.state.players.keys()
-    )[0]
-    this.state.currentPlayerId = firstPlayerId
-    this.startTurnTimer()
-    console.log(`Match started: ${this.state.matchId}`)
-  }
-
-  private startTurnTimer() {
-    if (this.turnTimer) clearTimeout(this.turnTimer)
-    this.turnTimer = setTimeout(() => {
-      this.advanceTurn()
-    }, this.state.turnTimerSeconds * 1000)
-  }
-
-  private advanceTurn() {
-    const playerIds = Array.from(this.state.players.keys())
-    const currentIndex = playerIds.indexOf(
-      this.state.currentPlayerId
-    )
-    const nextIndex = (currentIndex + 1) % playerIds.length
-    this.state.currentPlayerId = playerIds[nextIndex]
-    this.state.currentTurn++
-    const nextPlayer = this.state.players.get(
-      this.state.currentPlayerId
-    )
-    if (nextPlayer?.isBot) {
-      const botCount = (
-        this.botMoveCounts.get(
-          this.state.currentPlayerId
-        ) || 0
-      ) + 1
-      this.botMoveCounts.set(
-        this.state.currentPlayerId, botCount
-      )
-      if (botCount >= 3) {
-        nextPlayer.isBot = true
-      }
-      setTimeout(() => this.advanceTurn(), 2000)
-    } else {
-      this.startTurnTimer()
-    }
-  }
-
-  private handleMoveExplorer(client: Client, message: any) {
-    const player = this.findPlayerBySession(client.sessionId)
-    if (!player) return
-    if (player.playerId !== this.state.currentPlayerId) {
-      client.send('error', { message: 'NOT_YOUR_TURN' })
-      return
-    }
-    const { explorerId, targetX, targetY } = message
-    const explorer = this.state.explorers.get(explorerId)
-    if (!explorer) return
-    if (explorer.playerId !== player.playerId) return
-    if (!this.isValidMove(explorer, targetX, targetY)) {
-      client.send('error', { message: 'INVALID_MOVE' })
-      return
-    }
-    explorer.x = targetX
-    explorer.y = targetY
-    const tileKey = `${targetX}_${targetY}`
-    const tile = this.state.tiles.get(tileKey)
-    if (tile && !tile.isRevealed) {
-      tile.isRevealed = true
-    }
-    this.advanceTurn()
-  }
-
-  private handleEndTurn(client: Client) {
-    const player = this.findPlayerBySession(client.sessionId)
-    if (!player) return
-    if (player.playerId !== this.state.currentPlayerId) return
-    this.advanceTurn()
-  }
-
-  private isValidMove(
-    explorer: ExplorerSchema,
-    targetX: number,
-    targetY: number
-  ): boolean {
-    const dx = Math.abs(explorer.x - targetX)
-    const dy = Math.abs(explorer.y - targetY)
-    if (dx + dy !== 1) return false
-    const tileKey = `${targetX}_${targetY}`
-    const tile = this.state.tiles.get(tileKey)
-    if (!tile) return false
-    if (tile.tileType === 'water' && !explorer.hasBoat)
-      return false
-    return true
-  }
-
-  private findPlayerBySession(
-    sessionId: string
-  ): PlayerSchema | null {
-    for (const [, player] of this.state.players) {
-      if ((player as any)._sessionId === sessionId)
-        return player
-    }
-    return null
-  }
-
-  private checkAllBots() {
-    const allBots = Array.from(
-      this.state.players.values()
-    ).every(p => p.isBot)
-    if (allBots) {
-      this.state.status = 'abandoned'
-      console.log('All players are bots — match abandoned')
-      this.disconnect()
-    }
-  }
-}
-```
-
-#### Step 2.8 — Create colyseus.server.ts
-```typescript
-import { Server } from 'colyseus'
-import { createServer } from 'http'
-import { GameRoom } from './rooms/GameRoom'
-
-export function createColyseusServer(): Server {
-  const httpServer = createServer()
-  const gameServer = new Server({ server: httpServer })
-  gameServer.define('game_room', GameRoom)
-  httpServer.listen(2567, () => {
-    console.log('Colyseus server running on port 2567')
-  })
-  return gameServer
-}
-```
-
-#### Step 2.9 — Create colyseus.module.ts
-```typescript
-import { Module } from '@nestjs/common'
-
-@Module({})
-export class ColyseusModule {
-  constructor() {
-    import('./colyseus.server').then(
-      ({ createColyseusServer }) => {
-        createColyseusServer()
-      }
-    )
-  }
-}
-```
-
-#### Step 2.10 — Add to app.module.ts
-Import ColyseusModule from ./colyseus/colyseus.module
-Add ColyseusModule to imports array
-Keep all existing modules intact
-
-#### Step 2.11 — Start and verify
-```bash
-cd backend
-npm run start:dev
-```
-Verify console shows BOTH:
-- [Nest] Application is listening on port 3007
-- Colyseus server running on port 2567
-
-Fix any TypeScript errors before reporting done.
+1. Install NativeWebSocket or Colyseus Unity SDK in Unity
+2. Update NetworkManager.cs to open WebSocket to ws://localhost:2567
+3. Implement join room and send/receive messages
+4. Update GameStateSync.cs to apply received GameState to Unity scene
 
 ---
 
-## Task 3 — Update AGENT.md After Completion
+## Task 2 — Explorer Movement End-to-End
 
-After completing Tasks 1 and 2, update this file:
-- Mark completed tasks
-- Add new sprint tasks for next session
-- Next session should focus on:
-  - Connecting Unity NetworkManager to Colyseus
-  - Explorer movement end-to-end test
-  - Minimap UI implementation
+### Context
+Explorer taps are captured by InputManager.
+Colyseus GameRoom handles move_explorer messages.
+Need to wire the full flow: tap → send → validate → broadcast → render.
+
+### Steps
+1. On tile tap in InputManager, send move_explorer message via NetworkManager
+2. In GameStateSync, on state patch, update ExplorerController positions
+3. Test: tapping adjacent tile moves explorer, fog reveals, turn advances
 
 ---
 
-## Task 4 — Commit All Changes
+## Task 3 — Minimap UI
 
-```bash
-git add .
-git commit -m "feat: add colyseus server and fix unity fog reveal"
-git push origin develop
-```
+### Context
+No minimap exists yet. Should show fog/revealed state at small scale.
+
+### Steps
+1. Create MinimapManager.cs that renders a small overview
+2. Show fog as dark, revealed tiles as color-coded terrain
+3. Show explorer positions as colored dots
+4. Attach to UI canvas in GameBoard scene
+
+---
+
+## ✅ Completed This Session (2026-04-18)
+
+### Task 1 — Fix Unity Visual Issue — DONE
+Added null guard for _spriteRenderer in TileController.UpdateVisual().
+All other fixes (GetTileController, RevealTile chain, explicit UpdateVisual
+loops in SpawnTestExplorers) were already done in prior sessions.
+
+### Task 2 — Set Up Colyseus Server — DONE
+Installed colyseus@0.14.24 + @colyseus/schema@1.x (CJS-compatible).
+Note: colyseus@0.17 is ESM-only and incompatible with NestJS CJS; 0.14.24
+is the correct version for this project.
+Created backend/src/colyseus/ with GameRoom, schemas, module, server.
+Both NestJS (port 3007) and Colyseus (port 2567) start from npm run start:dev.
+Used require() in ColyseusModule constructor instead of dynamic import()
+to avoid node16 module resolution issues.
+
+### Task 3 — AGENT.md Updated — DONE
+
+### Task 4 — Commit — DONE (see git log)
 
 ---
 
@@ -508,3 +126,10 @@ git push origin develop
 ✅ Tile and Explorer prefabs created
 ✅ Grid lines and terrain color coding added
 ✅ MCP Unity integration via Coplay configured
+
+### Session 7 — Colyseus Server + Unity Visual Fix (2026-04-18)
+✅ TileController.UpdateVisual() null guard for _spriteRenderer added
+✅ Colyseus server built in backend/src/colyseus/ (colyseus@0.14.24)
+✅ GameRoom, GameState, TileSchema, ExplorerSchema, PlayerSchema created
+✅ ColyseusModule integrated into NestJS AppModule
+✅ Both services verified: port 3007 (NestJS) + port 2567 (Colyseus)

@@ -10,6 +10,7 @@ import { AppService } from './app.service';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { ShopModule } from './shop/shop.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ColyseusModule } from './colyseus/colyseus.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     LeaderboardModule,
     ShopModule,
     NotificationsModule,
+    ColyseusModule,
   ],
   controllers: [AppController],
   providers: [AppService],

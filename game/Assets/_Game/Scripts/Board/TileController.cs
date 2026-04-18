@@ -39,6 +39,10 @@ public class TileController : MonoBehaviour
     /// </summary>
     public void UpdateVisual()
     {
+        if (_spriteRenderer == null)
+            _spriteRenderer = GetComponent<SpriteRenderer>();
+        if (_spriteRenderer == null) return;
+
         if (!_tileData.isRevealed)
         {
             _spriteRenderer.sprite = fogSprite;
