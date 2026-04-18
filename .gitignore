@@ -16,3 +16,12 @@ game/*.user
 game/.vs/
 game/ExportedObj/
 game/memoryCaptures/
+
+# Claude Code local config
+claude/
+.claude/
+*.claude
+
+# Environment files
+docker/.env
+backend/.env
