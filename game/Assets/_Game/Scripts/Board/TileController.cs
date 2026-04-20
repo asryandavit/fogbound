@@ -46,6 +46,13 @@ public class TileController : MonoBehaviour
         if (!_tileData.isRevealed)
         {
             _spriteRenderer.sprite = fogSprite;
+            if (_spriteRenderer.sprite == null)
+            {
+                Texture2D tex = new Texture2D(1, 1);
+                tex.SetPixel(0, 0, Color.white);
+                tex.Apply();
+                _spriteRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+            }
             _spriteRenderer.color = new Color(0.1f, 0.1f, 0.1f, 1f);
             return;
         }
@@ -59,6 +66,15 @@ public class TileController : MonoBehaviour
             case TerrainType.Ice:     _spriteRenderer.sprite = iceSprite;     break;
             case TerrainType.Desert:  _spriteRenderer.sprite = desertSprite;  break;
             default:                  _spriteRenderer.sprite = grassSprite;   break;
+        }
+
+        // If no sprite assigned on prefab, create a 1x1 white sprite so color is visible
+        if (_spriteRenderer.sprite == null)
+        {
+            Texture2D tex = new Texture2D(1, 1);
+            tex.SetPixel(0, 0, Color.white);
+            tex.Apply();
+            _spriteRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
         }
 
         _spriteRenderer.color = GetTerrainColor(_tileData.terrainType);

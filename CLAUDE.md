@@ -195,3 +195,20 @@ Full rules in docs/GDD.md. Critical ones:
 4. Anything needing human visual verification
 5. Terminal/Console error count at end
 6. Recommended next steps
+
+## Quick Commands
+
+When I say "sprint" → read AGENT.md and execute current sprint
+When I say "fix unity" → fix all Unity Console errors
+When I say "fix backend" → fix all TypeScript errors in backend/
+When I say "status" → git log --oneline -5 and report current state
+When I say "deploy" → git add, commit with auto message, push origin
+When I say "test backend" → cd backend && npm run start:dev
+When I say "new sprint [description]" → update AGENT.md with new tasks
+
+## After Every Sprint
+1. Update docs/AGENT.md completed tasks section
+2. Write next sprint tasks based on what was just built
+3. git add docs/AGENT.md
+4. git commit -m "docs: update sprint tasks"
+5. git push origin develop

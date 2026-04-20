@@ -76,6 +76,17 @@ public class GameInitializer : MonoBehaviour
         _isInitialized = true;
         Debug.Log("Game initialized successfully");
 
+        // Step 8 - Connect to server (fire-and-forget; fails gracefully if server is down)
+        try
+        {
+            NetworkManager.Instance.Initialize("test_token", "player_1");
+            var _ = NetworkManager.Instance.ConnectToRoom("test_map");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Network init failed: {e.Message}");
+        }
+
         // Single yield at the end — all init runs in Frame 1 to avoid
         // Unity 6 License thread finalizer crashing play mode between yields.
         yield return null;
