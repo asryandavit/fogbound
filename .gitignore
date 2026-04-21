@@ -17,6 +17,16 @@ game/.vs/
 game/ExportedObj/
 game/memoryCaptures/
 
+# Unity MCP (machine-specific and auto-generated)
+game/.mcp.json
+game/Assets/Plugins/
+game/Assets/Plugins.meta
+game/Assets/com.IvanMurzak/
+game/Assets/com.IvanMurzak.meta
+game/ProjectSettings/Packages/
+game/com.IvanMurzak.Unity.MCP.Installer.csproj
+game/com.IvanMurzak.Unity.MCP.Installer.Tests.csproj
+
 # Claude Code local config
 claude/
 .claude/
