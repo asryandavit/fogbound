@@ -51,7 +51,7 @@ public class TileController : MonoBehaviour
                 Texture2D tex = new Texture2D(1, 1);
                 tex.SetPixel(0, 0, Color.white);
                 tex.Apply();
-                _spriteRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+                _spriteRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
             }
             _spriteRenderer.color = new Color(0.1f, 0.1f, 0.1f, 1f);
             return;
@@ -68,13 +68,14 @@ public class TileController : MonoBehaviour
             default:                  _spriteRenderer.sprite = grassSprite;   break;
         }
 
-        // If no sprite assigned on prefab, create a 1x1 white sprite so color is visible
+        // If no sprite assigned on prefab, create a 1x1 white sprite so color is visible.
+        // pixelsPerUnit=1 so the 1px texture maps to 1 world unit, filling the tile.
         if (_spriteRenderer.sprite == null)
         {
             Texture2D tex = new Texture2D(1, 1);
             tex.SetPixel(0, 0, Color.white);
             tex.Apply();
-            _spriteRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+            _spriteRenderer.sprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
         }
 
         _spriteRenderer.color = GetTerrainColor(_tileData.terrainType);
