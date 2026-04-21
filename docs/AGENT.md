@@ -1,77 +1,56 @@
 ## Current Sprint — Explorer Movement End to End
 
 ### Goal
-By end of sprint:
-- Player taps a valid adjacent tile → Unity sends move to Colyseus
-- Colyseus validates move, updates state, broadcasts new positions
-- Unity receives state update and renders explorer at new position
+Player taps tile → Unity sends move to Colyseus →
+Colyseus validates and applies → All Unity clients
+see the explorer move to new position.
 
-### Task 1 — Send Move from Unity to Server
+### Task 1 — Update NetworkManager to send moves
+Read game/Assets/_Game/Scripts/Network/NetworkManager.cs
+Add method SendMoveExplorer(string explorerId, 
+int targetX, int targetY):
+  sends message "move_explorer" with payload:
+    { explorerId, targetX, targetY }
+  uses _room.Send("move_explorer", payload)
 
-1. Read game/Assets/_Game/Scripts/Input/InputManager.cs
-2. When a tile is clicked and an explorer is selected, call:
-   NetworkManager.Instance.SendAction("move", new { explorerId, targetX, targetY })
-   Wrap in try/catch — log error, don't crash
-3. Read game/Assets/_Game/Scripts/Network/NetworkManager.cs
-   Confirm SendAction sends the message to Colyseus correctly
-4. Check Unity Console — 0 errors required
+### Task 2 — Update InputManager to send moves
+Read game/Assets/_Game/Scripts/Core/InputManager.cs
+In MoveSelectedExplorer method:
+After calling ExplorerManager.MoveExplorer
+Also call:
+NetworkManager.Instance?.SendMoveExplorer(
+  _selectedExplorerId, 
+  targetPosition.x, 
+  targetPosition.y)
 
-### Task 2 — Validate Move in Colyseus
+### Task 3 — Update GameStateSync to handle updates
+Read game/Assets/_Game/Scripts/Network/GameStateSync.cs
+Make sure it handles state_update messages from server
+When state changes update BoardManager tiles
+When explorer positions change update via 
+ExplorerManager.MoveExplorer
 
-1. Read backend/src/colyseus/GameRoom.ts (or wherever room is defined)
-2. Add onMessage("move") handler:
-   - Validate: explorer belongs to current player
-   - Validate: target is adjacent (orthogonal, 1 tile)
-   - Validate: it is this player's turn
-   - If valid: update explorer position in state, advance turn
-   - If invalid: send error message back to client
-3. Broadcast updated state to all clients after valid move
+### Task 4 — Connect NetworkManager OnStateChange
+In NetworkManager.cs SetupRoomListeners:
+Replace the state_update handler
+Instead use _room.OnStateChange += (state, isFirstState) =>
+  GameStateSync.Instance.ApplyState(state)
 
-### Task 3 — Render Updated Positions in Unity
+### Task 5 — Verify End to End
+1. Start backend: cd backend && npm run start:dev
+2. Start Unity Play mode
+3. In Unity Console should see:
+   Connected to room
+4. Tap your explorer
+5. Tap adjacent tile
+6. Explorer should move
+7. Check Colyseus server logs for move received
 
-1. Read game/Assets/_Game/Scripts/Network/GameStateSync.cs
-2. On state_update message, parse explorer positions
-3. Call ExplorerManager.Instance.MoveExplorer(id, newPos)
-4. Read game/Assets/_Game/Scripts/Gameplay/ExplorerController.cs
-   Add MoveToPosition(Vector2Int pos) coroutine if not present
-5. Check Unity Console — 0 errors required
-
-### Task 4 — Commit All Changes
-
+### Task 6 — Commit and Push
 git add .
-git commit -m "feat: explorer movement end to end"
+git commit -m "feat: connect unity movement to colyseus"
 git push origin develop
 
-### Task 5 — Update This File
-
-After completing tasks update this AGENT.md:
-- Move completed tasks to Completed History
-- Write next sprint tasks:
-  - Fog reveal on explorer move
-  - Combat when two explorers meet
-  - Turn timer and auto-advance
-
----
-
-## Completed History
-
-### Sprint — Fix Terrain Colors + Connect to Colyseus ✓
-
-**Task 1 — Fix Terrain Colors (Unity)** DONE
-- Root cause: sprite fields null on prefab, color had no effect on transparent sprite
-- Fix: in TileController.UpdateVisual(), after sprite assignment, if sprite is still null
-  create a 1×1 white Texture2D and assign as fallback sprite so terrain colors render
-
-**Task 2 — Setup .claude Configuration** DONE
-- Created .claude/settings.json with model + permissions
-- .claude/ already gitignored; settings.local.json already in .gitignore
-
-**Task 3 — Connect Unity NetworkManager to Colyseus** DONE
-- Added Step 8 to GameInitializer.InitializeGame() coroutine
-- Calls NetworkManager.Instance.Initialize("test_token", "player_1")
-- Fires ConnectToRoom("test_map") as fire-and-forget (no block on coroutine)
-- Wrapped in try/catch — logs error, does not crash if server is down
-
-**Task 4 — Commit** DONE
-
-**Console errors at end of sprint: 0**
+### Task 7 — Update AGENT.md
+Mark completed tasks
+Next sprint: Combat system, treasure spawning

@@ -107,20 +107,45 @@ git commit -m "type: description"
 git push origin develop
 ```
 
-## Unity MCP Integration
+## Unity MCP Server
+Using IvanMurzak/Unity-MCP (ai-game-developer) v0.66.0
+Transport: HTTP
+Port: 53752 (auto-assigned by Unity, may change on restart)
+URL: http://localhost:53752
+Config: game/.mcp.json and .mcp.json at project root
 
-Claude Code has MCP access to Unity Editor via Coplay.
-Use MCP tools to:
-- Read scene hierarchy and component values
-- Create and modify GameObjects
-- Add components and set properties
-- Save scenes
-- Read Unity Console logs
+IMPORTANT - Unity MCP requires:
+- Unity Editor must be open
+- GameBoard scene loaded
+- MCP Server must be Started in Window → AI Game Developer
+- Connection mode: Custom (not Cloud)
+- Transport: http (not stdio)
 
-Always read Console after Unity changes.
-Always save scene after making changes.
-Wait for Unity to recompile after script changes.
-Read Console again to confirm no errors.
+To start MCP server each session:
+1. Open Unity Editor
+2. Open Window → AI Game Developer
+3. Click Start next to MCP server
+4. Confirm green dots on Unity and MCP server
+
+Available tools (37/60 loaded):
+- scene-list-opened → list open scenes
+- scene-get-data → get scene info
+- gameobject-find → find GameObjects
+- gameobject-create → create new GameObject
+- gameobject-modify → modify components
+- gameobject-component-add → add component
+- gameobject-component-modify → change component values
+- script-update-or-create → write C# scripts
+- script-read → read existing scripts
+- script-execute → run C# code dynamically
+- console-get-logs → read Unity Console
+- screenshot-game-view → capture game view
+- editor-application-set-state → start/stop play mode
+- assets-find → find assets in project
+- package-add → install Unity packages
+
+When using MCP tools always use npx unity-mcp-cli
+Example: npx unity-mcp-cli run-tool scene-list-opened
 
 ## Database Workflow
 
@@ -205,6 +230,11 @@ When I say "status" → git log --oneline -5 and report current state
 When I say "deploy" → git add, commit with auto message, push origin
 When I say "test backend" → cd backend && npm run start:dev
 When I say "new sprint [description]" → update AGENT.md with new tasks
+When I say "scene" → list all GameObjects in current scene
+When I say "screenshot" → capture game view screenshot
+When I say "play" → start Unity play mode
+When I say "stop" → stop Unity play mode
+When I say "logs" → get Unity Console logs
 
 ## After Every Sprint
 1. Update docs/AGENT.md completed tasks section
