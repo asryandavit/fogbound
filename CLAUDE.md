@@ -76,7 +76,7 @@ If it only exists during a match → Colyseus
 | PostgreSQL | 5444 |
 | Redis      | 6399 |
 | NestJS     | 3007 |
-| Colyseus   | 2567 |
+| Colyseus   | 2568 |
 
 ## Commands
 

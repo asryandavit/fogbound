@@ -42,7 +42,7 @@ Decision: Non-default ports for all services
 PostgreSQL: 5444
 Redis: 6399
 NestJS: 3007
-Colyseus: 2567
+Colyseus: 2568
 Reason: Avoid conflicts with other local projects.
 
 ## 007 — Game name: FOGBOUND

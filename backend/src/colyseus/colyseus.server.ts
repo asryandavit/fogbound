@@ -8,8 +8,8 @@ export function createColyseusServer(service?: ColyseusService): Server {
   const gameServer = new Server({ server: httpServer });
   gameServer.define('fogbound_room', GameRoom);
   if (service) service.setServer(gameServer);
-  httpServer.listen(2567, () => {
-    console.log('Colyseus server running on port 2567');
+  httpServer.listen(2568, () => {
+    console.log('Colyseus server running on port 2568');
   });
   return gameServer;
 }

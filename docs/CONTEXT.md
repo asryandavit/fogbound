@@ -54,7 +54,7 @@ fogbound/
 - PostgreSQL:  5444
 - Redis:       6399
 - NestJS:      3007
-- Colyseus:    2567
+- Colyseus:    2568
 
 ## Database Rules
 - Migration tool: node-pg-migrate
