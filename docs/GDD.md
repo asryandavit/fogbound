@@ -14,6 +14,11 @@
 8. [Win Conditions](#win-conditions)
 9. [Turn Timer](#turn-timer)
 10. [Tile Library](#tile-library)
+11. [HUD Layout](#hud-layout)
+12. [Camera Behavior](#camera-behavior)
+13. [UX Patterns](#ux-patterns)
+14. [Visual Identity](#visual-identity)
+15. [V1 vs V2 Scope](#v1-vs-v2-scope)
 
 ---
 
@@ -204,3 +209,153 @@ All remaining tiles from the full library.
 | **Structure** | Ancient Ruins, Watchtower, Camp, Fortress, Temple, Market, Prison, Shrine                                   |
 | **Events**    | Fog Storm, Earthquake, Gold Rush, Pirates Attack, Rescue Mission, Ancient Curse, Lucky Find, Rival Explorer |
 | **Alliance**  | Trading Post, Truce Flag, Spy, Sabotage                                                                     |
+
+---
+
+## HUD Layout
+
+### Portrait Phone
+
+| Zone | Height | Content |
+|---|---|---|
+| Top bar | 8% | Turn counter, active player avatar + color, treasure score, settings gear. Avatar pulses during their turn. |
+| Board | 62% | Grid with pinch/pan/double-tap zoom. |
+| Bottom action strip | 30% | Context-morphing primary button (right), Undo (left), End Turn always reachable with thumb. |
+
+**Explorer mini card** (when explorer selected): slides in from right — name, inventory slots, moves remaining, HP/shield icons. Non-blocking.
+
+**Context-morphing button states:** Select Explorer → Confirm Move → End Turn.
+
+**Undo:** always available until End Turn is pressed. Non-negotiable.
+
+**Minimap:** none for ≤13×13 (zoomed-out view is the minimap). Toggleable top-left minimap for 15×15 and 17×17.
+
+### Tablet Landscape
+
+Persistent left panel 250–320dp: player turn order, explorer info, tile detail log. Board fills remaining screen.
+
+---
+
+## Camera Behavior
+
+- **Zoom type:** continuous pinch (not discrete steps)
+- **Formula:** `orthoSize -= pinchDelta * 0.5f * orthoSize` (exponential feel)
+- **Lerp speed:** 12/sec to target
+- **Pinch pivot:** midpoint of two fingers (not screen center)
+- **Ignore deltas under:** 2px
+- **Min zoom:** entire board visible with 10% padding
+- **Max zoom:** 5×5 tiles visible
+- **Default on match start:** midpoint of min/max, centered on player's starting row
+- **Double-tap:** 3-level cycle — fit-to-screen → default → close (5×5 centered on tap), 350ms EaseInOutCubic
+- **Auto-pan on YOUR turn start:** yes — pan only, no zoom, 450ms EaseOutQuad, only if explorers are off-screen
+- **Auto-pan on manual selection:** NO
+- **During opponent turns:** static — never follow opponent moves (fog-integrity rule)
+- **Opponent reveals inside your vision:** pulse the tile without panning
+- **Edge behavior:** elastic rubber-band, 40px max pull, 250ms EaseOutElastic snap-back
+
+---
+
+## UX Patterns
+
+### Explorer Selection
+
+Tap an explorer → valid destination tiles tinted blue (#3B7A98, 45% alpha). Fog-boundary neighbors tinted yellow (unrevealed). Enemy tiles tinted red (combat warning). Tap destination → pending state → confirm via primary button or auto-commit after 300ms (configurable in settings). Undo always available until End Turn.
+
+### Tile Discovery Popups
+
+- **6 category-intro popups** fire once per save (first reveal of any tile in that category). Categories: Treasure, Movement, Combat, Terrain, Structure, Events.
+- **~15 landmark-tile popups** for unique/major tiles (legendary treasures, major traps, alliance shrines, special movement tiles). The rest share their category intro.
+- **Popup spec:** 340×480pt card, centered, parchment `#F4E4BC` over 50% dimmer. Hero art top, 28pt Cinzel Bold title, 14pt Nunito description (60–90 words), optional IM Fell English flavor line. "Skip future tile discoveries" checkbox bottom-left. Primary button bottom-right.
+- **Animation:** scale 0.92→1.00 + fade 220ms EaseOutBack. Dismiss 180ms EaseInCubic.
+- **Skip flag persists to save file** — not session. This is a P0 correctness requirement.
+- **Tilepedia:** pause menu "?" icon, 6 category tabs, unseen tiles shown as silhouettes with "???".
+
+### Turn Transition
+
+Active player avatar pulses in top bar. On your turn start: 450ms EaseOutQuad pan if explorers off-screen, parchment banner "Your Turn / Turn N" slides down and auto-dismisses after 1.2s or on tap. Async mode: opponent's full turn replays as a 2–3s animation when you open the game.
+
+### Combat Resolution
+
+Attacker tile glows green, defender tile glows red. Pre-combat card: "Attacker wins unless Shield." 600ms zoom-in pulse (15% tighter, snap back), clash SFX + medium haptic. Loser's explorer fades out 300ms with particle burst. If defender had Shield: shield icon rises and deflects with metallic clang.
+
+### Treasure Collection
+
+Coin/gem arcs from tile to inventory slot (400ms parabolic PrimeTween). Coin-jingle SFX, light haptic, small particle burst from source tile. Inventory counter flashes gold and increments. If inventory is full: pickup bounces back with muted "denied" SFX and floating "Inventory Full" label.
+
+### Base Return / Scoring
+
+Crossing onto base with inventory → 1.2s brass fanfare, scoring items float from inventory to score counter along curved path. Counter digits roll. Base tile pulses player color. If player is now winning: small crown icon appears on top-bar avatar.
+
+### End of Match / Victory
+
+Slow-motion zoom on winning explorer's base. Orchestral stinger. Confetti in player color. Replay of winning move or final score tiles flying in one by one. Results screen: final scores, MVP highlight, rematch + share + return-to-lobby. Match log persisted for post-game review.
+
+---
+
+## Visual Identity
+
+### Color Palette
+
+| Role | Hex | Usage |
+|---|---|---|
+| Deep Fog Blue | `#2C3E50` | Fog overlay, backgrounds |
+| Treasure Gold | `#D4A24C` | Primary actions, score, highlights |
+| Harbor Teal | `#3B7A98` | Valid-move tint, UI accents |
+| Explorer Leather | `#8B5A3C` | Explorer units, wood UI elements |
+| Parchment Cream | `#F4E4BC` | Card backgrounds, popups |
+| Jungle Green | `#7FB069` | Terrain category tiles |
+| Crimson Flag | `#C84B31` | Combat/danger tiles |
+| Mist White | `#E8DCC4` @ 40% alpha | Fog of war overlay |
+
+Gold-on-fog contrast is 7.8:1 (WCAG AAA). Jungle/Crimson pair is colorblind-risky — all tile categories must also be distinguishable by icon and pattern, not color alone.
+
+### Typography
+
+| Role | Font |
+|---|---|
+| Display titles, tile names | Cinzel Bold |
+| Game logo only | Cinzel Black |
+| All body and UI text | Nunito Regular / SemiBold / Bold |
+| Flavor quotes, journal entries | IM Fell English (sparingly) |
+
+Avoid Inter (feels SaaS). Avoid Cormorant for body (hairlines crush on phones). Mandate dynamic text scaling — tiny touch targets are a top Wingspan App Store complaint.
+
+### Art Style
+
+Painted semi-flat with depth. Reference: Sea of Thieves × Slay the Spire × Monument Valley. Warm painted textures, clean readable silhouettes, subtle rim lighting on selected tiles. Unity 6 URP 2D Renderer with baked normal maps. One mid-level illustrator scope. 512×512 source art rendered at 128pt.
+
+### Iconography
+
+Semi-flat with depth, 2px minimum line weight, 3px container radius, 24pt base grid. Aesthetic: "hand-etched on leather, touched up with gold ink." SVG via `com.unity.vectorgraphics`. Slightly imperfect outlines — hint of woodcut.
+
+### Audio
+
+Orchestral-folk hybrid. Instruments: strings, acoustic guitar, pan flute/tin whistle. Reference tracks: Sea of Thieves "Maiden Voyage," Sid Meier's Pirates! theme, Civ VI "Sogno di Volare," Return of the Obra Dinn. Tile reveal SFX = paper-crinkle + muted timpani. Treasure = coin jingle + 1.2s brass fanfare. UI taps = thocky paper-click. 6–8 track original score (main theme, match loop, tension stinger, victory fanfare, menu, ambient biome tracks). No voice acting at v1.
+
+### Accessibility
+
+- WCAG AA contrast minimum, AAA on primary text
+- Dynamic Type support
+- Reduced motion toggle in settings
+- Colorblind modes: Protanopia, Deuteranopia, Tritanopia
+- 48pt minimum touch targets on phone, 56pt on primary actions
+
+---
+
+## V1 vs V2 Scope
+
+### Must Ship in V1 (Launch-Blocking)
+
+**Gameplay:** square grid 7×7–17×17, 2–4 players, 1/2/3 explorers by map size, 4-directional movement, 48 tile types (ship Tier 1 + Tier 2 at minimum), coin+gem inventory 3+1, combat with Shield override, base return scoring, all win conditions.
+
+**Architecture:** ICoordinate/IGrid abstraction, ScriptableObject tile definitions, pure-C# Model layer, VContainer DI, PrimeTween, Cinemachine 3 camera, Addressables, New Input System multitouch, Colyseus room + schema sync, Cloud Save, Unity Localization (English only).
+
+**UI:** portrait on phone + landscape on tablet, context-morphing primary button, Undo, End Turn, explorer selection tints, 6 category discovery popups, Tilepedia, animation-speed slider, discovery-popup toggle, reduced-motion mode, colorblind filters, haptics toggle.
+
+**Multiplayer:** realtime (60s turn timer option), async (24h default, 60s–7 days configurable), bot takeover after 3 missed turns with visible badge, push notifications (P0 QA), pass-and-play.
+
+### Deferred to V2
+
+Hexagon maps, triangle maps, bag expansion tuning (3+1→5+2), alliance mechanic animation polish, additional 12–15 landmark tile popups, cross-platform Steam port, Switch port, foldable Flex Mode, MFi/controller support, replays/share gifs, clan/guild systems, ELO ladder, legendary foil shader, spectator mode, season pass cosmetics, daily puzzle mode, weekly event boards.
+
+**Never (any version):** energy systems, gacha, pay-to-progress, card-level power tiers.

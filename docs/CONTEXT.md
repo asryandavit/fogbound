@@ -7,7 +7,7 @@ Explorers navigate fog-covered islands collecting gems and coins.
 Inspired by Jackal board game mechanics but fully original.
 
 ## Tech Stack
-- Game Client:     Unity 2023 LTS (Universal 2D template, C#)
+- Game Client:     Unity 6 LTS (6000.x, Universal 2D, C#)
 - Backend:         NestJS (Node.js 24, TypeScript)
 - Realtime:        Colyseus (game rooms, live state sync)
 - Database:        PostgreSQL (latest stable)
@@ -15,6 +15,19 @@ Inspired by Jackal board game mechanics but fully original.
 - Mobile:          Unity builds natively to iOS and Android
 - Auth:            JWT + Google/Apple Sign-In
 - Container:       Docker via OrbStack on Mac
+
+## Unity Package Stack (Decided)
+- UI Toolkit         — meta-UI (menus, lobby, settings, shop, Tilepedia)
+- UGUI               — in-match HUD, board, world-space tooltips
+- PrimeTween         — all animations (zero GC; replaces DOTween)
+- Cinemachine 3.x    — camera rig (virtual camera + CameraTarget)
+- VContainer         — DI container (5–10× faster than Zenject, zero alloc)
+- Addressables       — all content (tile art, audio); keeps APK under 200MB
+- New Input System   — all input including multi-touch pinch/pan
+- Unity Localization — wired from day one (English only at launch)
+- UGS Cloud Save     — cross-device save, sync on turn-end
+- UGS Remote Config  — bot difficulty, turn timers, feature flags
+- com.unity.vectorgraphics — SVG icon imports
 
 ## Architecture Rules (Never Break These)
 - Unity client is a PURE RENDERER — it never calculates game logic
@@ -41,7 +54,7 @@ fogbound/
 - PostgreSQL:  5444
 - Redis:       6399
 - NestJS:      3007
-- Colyseus:    2577
+- Colyseus:    2567
 
 ## Database Rules
 - Migration tool: node-pg-migrate
@@ -65,9 +78,15 @@ fogbound/
 ## Current Status
 - Project structure created
 - Git repository initialized
-- Docker not yet configured
-- No tables created yet
-- Unity project not yet created
+- Docker configured (docker/docker-compose.db.yml)
+- All 9 DB tables migrated and verified
+- NestJS 11 running on port 3007
+- All backend modules built: auth, database, players, maps,
+  matches, leaderboard, shop, notifications
+- Unity 6 LTS project created (game/)
+- GameBoard scene with 13×13 board, fog of war, 4 explorers
+- Colyseus server NOT YET BUILT (biggest missing piece)
+- NetworkManager.cs and GameStateSync.cs are stubs
 
 ## Bot & Reconnection Rules
 - When player disconnects bot takes over immediately
