@@ -183,7 +183,19 @@ Gray-square board, 2-player local/LAN match playable end to end:
 
 ### Completed Tasks
 
-_(none yet — sprint started 2026-04-22)_
+#### Phase 1 — Grid Abstraction + Model Layer ✅ (2026-04-22)
+
+- Task 1 — ICoordinate / IGrid interfaces + SquareCoord + SquareGrid (BFS/Dijkstra pathfinding)
+- Task 2 — Pure GameState interfaces + GameRules (isValidMove, applyMove, resolveCombat, checkWinCondition)
+- Task 3 — 48 unit tests, all passing (`npx jest "colyseus/model"`)
+
+#### Phase 2 — Colyseus Room + Schema Sync ✅ (2026-04-22)
+
+- Task 4 — GameRoom rewritten: uses GameRules for validation, toPureState/applyPureState bridge, explorer spawning on join, bot badge broadcast
+- Task 5 — FogboundState.ts + TurnStateSchema.ts created; ExplorerSchema gets hasShield, PlayerSchema gets baseX/baseY
+- Task 6 — ColyseusModule exports ColyseusService; colyseus.server.ts accepts service reference
+- Task 7 — Reconnection: allowReconnection(client, 60); bot takeover + "player_afk_bot_controlling" broadcast; all-bots → abandoned
+- Room name changed from 'game_room' → 'fogbound_room' (matches Unity NetworkManager task)
 
 ---
 

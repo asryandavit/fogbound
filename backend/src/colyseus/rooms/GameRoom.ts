@@ -1,189 +1,299 @@
-import { Room, Client } from 'colyseus'
-import { GameState } from '../schemas/GameState'
-import { TileSchema } from '../schemas/TileSchema'
-import { ExplorerSchema } from '../schemas/ExplorerSchema'
-import { PlayerSchema } from '../schemas/PlayerSchema'
+import { Room, Client } from 'colyseus';
+import { FogboundState } from '../schemas/FogboundState';
+import { TileSchema } from '../schemas/TileSchema';
+import { ExplorerSchema } from '../schemas/ExplorerSchema';
+import { PlayerSchema } from '../schemas/PlayerSchema';
+import { isValidMove, applyMove } from '../model/GameRules';
+import { GameState, TileState, ExplorerState, PlayerState, tileKey } from '../model/GameState';
 
-export class GameRoom extends Room<GameState> {
-  private turnTimer: any = null
-  private botMoveCounts: Map<string, number> = new Map()
+const COLORS = ['red', 'blue', 'green', 'yellow'];
+const EXPLORERS_PER_PLAYER: Record<number, number> = {
+  7: 1, 9: 1,
+  11: 2, 13: 2,
+  15: 3, 17: 3,
+};
+
+export class GameRoom extends Room<FogboundState> {
+  private readonly sessionToPlayerId = new Map<string, string>();
+  private turnTimer: ReturnType<typeof setTimeout> | null = null;
 
   onCreate(options: any) {
-    this.setState(new GameState())
-    this.state.matchId = options.matchId || `match_${Date.now()}`
-    this.state.winCondition = options.winCondition || 'all_treasure'
-    this.state.turnTimerSeconds = options.turnTimerSeconds || 60
-    this.setPatchRate(50)
-    this.initializeBoard(options.gridRows || 13, options.gridCols || 13)
-    this.onMessage('move_explorer', (client, message) => {
-      this.handleMoveExplorer(client, message)
-    })
-    this.onMessage('end_turn', (client, _message) => {
-      this.handleEndTurn(client)
-    })
-    console.log(`GameRoom created: ${this.state.matchId}`)
+    this.setState(new FogboundState());
+    this.state.matchId = options.matchId || `match_${Date.now()}`;
+    this.state.winCondition = options.winCondition || 'all_treasure';
+    this.state.turnTimerSeconds = options.turnTimerSeconds || 60;
+    this.setPatchRate(50);
+
+    const rows: number = options.gridRows || 13;
+    const cols: number = options.gridCols || 13;
+    this.initializeBoard(rows, cols);
+
+    this.onMessage('move_explorer', (client, message) => this.handleMoveExplorer(client, message));
+    this.onMessage('end_turn', (client) => this.handleEndTurn(client));
+
+    console.log(`GameRoom created: ${this.state.matchId}`);
   }
 
   async onJoin(client: Client, options: any) {
-    const playerId = options.playerId || client.sessionId
-    const username = options.username || 'Player'
-    const slotNumber = this.state.players.size
-    const colors = ['red', 'blue', 'green', 'yellow']
-    const player = new PlayerSchema()
-    player.playerId = playerId
-    player.username = username
-    player.slotNumber = slotNumber
-    player.teamColor = colors[slotNumber] || 'red'
-    player.isConnected = true
-    this.state.players.set(playerId, player)
-    console.log(`Player joined: ${username} (${playerId})`)
-    if (this.state.players.size >= 2) {
-      this.startMatch()
-    }
+    const playerId: string = options.playerId || client.sessionId;
+    const username: string = options.username || 'Player';
+    const slot = this.state.players.size;
+
+    this.sessionToPlayerId.set(client.sessionId, playerId);
+
+    const cols = this.boardCols();
+    const rows = this.boardRows();
+    const baseX = Math.floor(cols / 2);
+    const baseY = slot === 0 ? 0 : rows - 1;
+
+    const player = new PlayerSchema();
+    player.playerId = playerId;
+    player.username = username;
+    player.slotNumber = slot;
+    player.teamColor = COLORS[slot] || 'red';
+    player.isConnected = true;
+    player.baseX = baseX;
+    player.baseY = baseY;
+    this.state.players.set(playerId, player);
+
+    this.spawnExplorers(playerId, slot, baseX, baseY, rows, cols);
+
+    console.log(`Player joined: ${username} (${playerId})`);
+
+    if (this.state.players.size >= 2) this.startMatch();
   }
 
   async onLeave(client: Client, consented: boolean) {
-    const player = this.findPlayerBySession(client.sessionId)
-    if (!player) return
-    player.isConnected = false
-    console.log(`Player disconnected: ${player.playerId}`)
+    const player = this.findPlayerBySession(client.sessionId);
+    if (!player) return;
+    player.isConnected = false;
+    console.log(`Player disconnected: ${player.playerId}`);
+
     if (!consented) {
       try {
-        await this.allowReconnection(client, 60)
-        player.isConnected = true
-        console.log(`Player reconnected: ${player.playerId}`)
+        await this.allowReconnection(client, 60);
+        player.isConnected = true;
+        console.log(`Player reconnected: ${player.playerId}`);
       } catch {
-        player.isBot = true
-        this.botMoveCounts.set(player.playerId, 0)
-        console.log(`Player replaced by bot: ${player.playerId}`)
-        this.checkAllBots()
+        player.isBot = true;
+        console.log(`Player replaced by bot: ${player.playerId}`);
+        this.broadcast('player_afk_bot_controlling', { playerId: player.playerId });
+        this.checkAllBots();
       }
     }
   }
 
   onDispose() {
-    if (this.turnTimer) clearTimeout(this.turnTimer)
-    console.log(`GameRoom disposed: ${this.state.matchId}`)
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+    console.log(`GameRoom disposed: ${this.state.matchId}`);
   }
+
+  // ─── Private ──────────────────────────────────────────────────────────────
 
   private initializeBoard(rows: number, cols: number) {
     for (let x = 0; x < cols; x++) {
       for (let y = 0; y < rows; y++) {
-        const tile = new TileSchema()
-        tile.x = x
-        tile.y = y
-        tile.tileType = 'grass'
-        tile.isRevealed = false
-        const key = `${x}_${y}`
-        this.state.tiles.set(key, tile)
+        const tile = new TileSchema();
+        tile.x = x;
+        tile.y = y;
+        tile.tileType = 'grass';
+        tile.isRevealed = false;
+        this.state.tiles.set(tileKey(x, y), tile);
       }
     }
-    this.revealStartingRows(rows, cols)
+    for (let x = 0; x < cols; x++) {
+      const bottom = this.state.tiles.get(tileKey(x, 0));
+      if (bottom) bottom.isRevealed = true;
+      const top = this.state.tiles.get(tileKey(x, rows - 1));
+      if (top) top.isRevealed = true;
+    }
   }
 
-  private revealStartingRows(rows: number, cols: number) {
-    for (let x = 0; x < cols; x++) {
-      const bottom = this.state.tiles.get(`${x}_0`)
-      if (bottom) bottom.isRevealed = true
-      const top = this.state.tiles.get(`${x}_${rows - 1}`)
-      if (top) top.isRevealed = true
+  private spawnExplorers(playerId: string, slot: number, baseX: number, baseY: number, rows: number, cols: number) {
+    const count = EXPLORERS_PER_PLAYER[cols] ?? 2;
+    const spacing = Math.floor(cols / (count + 1));
+    for (let i = 0; i < count; i++) {
+      const explorerId = `${playerId}_e${i}`;
+      const x = spacing * (i + 1);
+      const explorer = new ExplorerSchema();
+      explorer.explorerId = explorerId;
+      explorer.playerId = playerId;
+      explorer.x = x;
+      explorer.y = baseY;
+      this.state.explorers.set(explorerId, explorer);
     }
   }
 
   private startMatch() {
-    this.state.status = 'in_progress'
-    const firstPlayerId = Array.from(this.state.players.keys())[0] as string
-    this.state.currentPlayerId = firstPlayerId
-    this.startTurnTimer()
-    console.log(`Match started: ${this.state.matchId}`)
+    this.state.status = 'in_progress';
+    const firstPlayerId = [...this.state.players.keys()][0] as string;
+    this.state.turnState.currentPlayerId = firstPlayerId;
+    this.state.turnState.turnNumber = 1;
+    this.startTurnTimer();
+    console.log(`Match started: ${this.state.matchId}`);
   }
 
   private startTurnTimer() {
-    if (this.turnTimer) clearTimeout(this.turnTimer)
-    this.turnTimer = setTimeout(() => {
-      this.advanceTurn()
-    }, this.state.turnTimerSeconds * 1000)
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+    this.turnTimer = setTimeout(() => this.advanceTurn(), this.state.turnTimerSeconds * 1000);
   }
 
   private advanceTurn() {
-    const playerIds = Array.from(this.state.players.keys()) as string[]
-    const currentIndex = playerIds.indexOf(this.state.currentPlayerId)
-    const nextIndex = (currentIndex + 1) % playerIds.length
-    this.state.currentPlayerId = playerIds[nextIndex]
-    this.state.currentTurn++
-    const nextPlayer = this.state.players.get(this.state.currentPlayerId)
+    const playerIds = [...this.state.players.keys()] as string[];
+    const current = this.state.turnState.currentPlayerId;
+    const idx = playerIds.indexOf(current);
+    const next = playerIds[(idx + 1) % playerIds.length];
+    this.state.turnState.currentPlayerId = next;
+    this.state.turnState.turnNumber++;
+
+    const nextPlayer = this.state.players.get(next);
     if (nextPlayer?.isBot) {
-      const botCount = (this.botMoveCounts.get(this.state.currentPlayerId) || 0) + 1
-      this.botMoveCounts.set(this.state.currentPlayerId, botCount)
-      if (botCount >= 3) {
-        nextPlayer.isBot = true
+      const botCount = (nextPlayer as PlayerSchema & { _botMoves?: number })._botMoves ?? 0;
+      (nextPlayer as PlayerSchema & { _botMoves?: number })._botMoves = botCount + 1;
+      if (botCount + 1 >= 3) {
+        this.broadcast('player_afk_bot_controlling', { playerId: next });
       }
-      setTimeout(() => this.advanceTurn(), 2000)
+      setTimeout(() => this.advanceTurn(), 2000);
     } else {
-      this.startTurnTimer()
+      this.startTurnTimer();
     }
   }
 
   private handleMoveExplorer(client: Client, message: any) {
-    const player = this.findPlayerBySession(client.sessionId)
-    if (!player) return
-    if (player.playerId !== this.state.currentPlayerId) {
-      client.send('error', { message: 'NOT_YOUR_TURN' })
-      return
+    const player = this.findPlayerBySession(client.sessionId);
+    if (!player) return;
+    if (player.playerId !== this.state.turnState.currentPlayerId) {
+      client.send('error', { code: 'NOT_YOUR_TURN' });
+      return;
     }
-    const { explorerId, targetX, targetY } = message
-    const explorer = this.state.explorers.get(explorerId)
-    if (!explorer) return
-    if (explorer.playerId !== player.playerId) return
-    if (!this.isValidMove(explorer, targetX, targetY)) {
-      client.send('error', { message: 'INVALID_MOVE' })
-      return
+
+    const { explorerId, targetX, targetY } = message as { explorerId: string; targetX: number; targetY: number };
+    const pureState = this.toPureState();
+
+    if (!isValidMove(pureState, explorerId, { x: targetX, y: targetY })) {
+      client.send('error', { code: 'INVALID_MOVE' });
+      return;
     }
-    explorer.x = targetX
-    explorer.y = targetY
-    const tileKey = `${targetX}_${targetY}`
-    const tile = this.state.tiles.get(tileKey)
-    if (tile && !tile.isRevealed) {
-      tile.isRevealed = true
-    }
-    this.advanceTurn()
+
+    const nextState = applyMove(pureState, explorerId, { x: targetX, y: targetY });
+    this.applyPureState(nextState);
+    this.advanceTurn();
   }
 
   private handleEndTurn(client: Client) {
-    const player = this.findPlayerBySession(client.sessionId)
-    if (!player) return
-    if (player.playerId !== this.state.currentPlayerId) return
-    this.advanceTurn()
-  }
-
-  private isValidMove(
-    explorer: ExplorerSchema,
-    targetX: number,
-    targetY: number
-  ): boolean {
-    const dx = Math.abs(explorer.x - targetX)
-    const dy = Math.abs(explorer.y - targetY)
-    if (dx + dy !== 1) return false
-    const tileKey = `${targetX}_${targetY}`
-    const tile = this.state.tiles.get(tileKey)
-    if (!tile) return false
-    if (tile.tileType === 'water' && !explorer.hasBoat) return false
-    return true
+    const player = this.findPlayerBySession(client.sessionId);
+    if (!player) return;
+    if (player.playerId !== this.state.turnState.currentPlayerId) return;
+    this.advanceTurn();
   }
 
   private findPlayerBySession(sessionId: string): PlayerSchema | null {
-    for (const [, player] of this.state.players) {
-      if ((player as any)._sessionId === sessionId) return player
-    }
-    return null
+    const playerId = this.sessionToPlayerId.get(sessionId);
+    if (!playerId) return null;
+    return this.state.players.get(playerId) || null;
+  }
+
+  private boardCols(): number {
+    return Math.round(Math.sqrt(this.state.tiles.size)) || 13;
+  }
+
+  private boardRows(): number {
+    return this.boardCols();
   }
 
   private checkAllBots() {
-    const allBots = Array.from(this.state.players.values()).every(p => (p as PlayerSchema).isBot)
+    const allBots = [...this.state.players.values()].every(p => p.isBot);
     if (allBots) {
-      this.state.status = 'abandoned'
-      console.log('All players are bots — match abandoned')
-      this.disconnect()
+      this.state.status = 'abandoned';
+      console.log('All players are bots — match abandoned');
+      void this.disconnect();
+    }
+  }
+
+  // ─── Pure model bridge ────────────────────────────────────────────────────
+
+  private toPureState(): GameState {
+    const tiles = new Map<string, TileState>();
+    for (const [k, t] of this.state.tiles) {
+      tiles.set(k, {
+        x: t.x, y: t.y,
+        tileType: t.tileType,
+        isRevealed: t.isRevealed,
+        treasureType: t.treasureType,
+        treasureValue: t.treasureValue,
+      });
+    }
+
+    const explorers = new Map<string, ExplorerState>();
+    for (const [k, e] of this.state.explorers) {
+      explorers.set(k, {
+        explorerId: e.explorerId,
+        playerId: e.playerId,
+        x: e.x, y: e.y,
+        coinCount: e.coinCount,
+        otherItems: [],
+        hasBag: e.hasBag,
+        hasBoat: e.hasBoat,
+        hasShield: e.hasShield,
+      });
+    }
+
+    const players = new Map<string, PlayerState>();
+    for (const [k, p] of this.state.players) {
+      players.set(k, {
+        playerId: p.playerId,
+        username: p.username,
+        score: p.score,
+        isBot: p.isBot,
+        isConnected: p.isConnected,
+        slotNumber: p.slotNumber,
+        teamColor: p.teamColor,
+        baseX: p.baseX,
+        baseY: p.baseY,
+      });
+    }
+
+    return {
+      matchId: this.state.matchId,
+      status: this.state.status as GameState['status'],
+      gridCols: this.boardCols(),
+      gridRows: this.boardRows(),
+      tiles,
+      explorers,
+      players,
+      turn: {
+        currentPlayerId: this.state.turnState.currentPlayerId,
+        turnNumber: this.state.turnState.turnNumber,
+        phase: this.state.turnState.phase as GameState['turn']['phase'],
+      },
+      winCondition: this.state.winCondition as GameState['winCondition'],
+    };
+  }
+
+  private applyPureState(next: GameState) {
+    for (const [k, t] of next.tiles) {
+      const schema = this.state.tiles.get(k);
+      if (!schema) continue;
+      if (schema.isRevealed !== t.isRevealed) schema.isRevealed = t.isRevealed;
+      if (schema.treasureType !== t.treasureType) schema.treasureType = t.treasureType;
+      if (schema.treasureValue !== t.treasureValue) schema.treasureValue = t.treasureValue;
+    }
+
+    for (const [k, e] of next.explorers) {
+      const schema = this.state.explorers.get(k);
+      if (!schema) continue;
+      if (schema.x !== e.x) schema.x = e.x;
+      if (schema.y !== e.y) schema.y = e.y;
+      if (schema.coinCount !== e.coinCount) schema.coinCount = e.coinCount;
+      if (schema.hasBag !== e.hasBag) schema.hasBag = e.hasBag;
+      if (schema.hasBoat !== e.hasBoat) schema.hasBoat = e.hasBoat;
+      if (schema.hasShield !== e.hasShield) schema.hasShield = e.hasShield;
+    }
+
+    for (const [k, p] of next.players) {
+      const schema = this.state.players.get(k);
+      if (!schema) continue;
+      if (schema.score !== p.score) schema.score = p.score;
     }
   }
 }

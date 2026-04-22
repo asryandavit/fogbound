@@ -10,6 +10,7 @@ export class ExplorerSchema extends Schema {
   @type('number') coinCount: number = 0
   @type('boolean') hasBag: boolean = false
   @type('boolean') hasBoat: boolean = false
+  @type('boolean') hasShield: boolean = false
   @type('boolean') isBot: boolean = false
   @type('number') botMoveCount: number = 0
 }

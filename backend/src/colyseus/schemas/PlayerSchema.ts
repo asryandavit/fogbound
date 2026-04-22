@@ -8,4 +8,6 @@ export class PlayerSchema extends Schema {
   @type('boolean') isConnected: boolean = true
   @type('number') slotNumber: number = 0
   @type('string') teamColor: string = 'red'
+  @type('number') baseX: number = 0
+  @type('number') baseY: number = 0
 }

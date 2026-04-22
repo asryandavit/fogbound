@@ -1,10 +1,16 @@
-import { Module } from '@nestjs/common'
+import { Module } from '@nestjs/common';
+import { ColyseusService } from './colyseus.service';
 
-@Module({})
+@Module({
+  providers: [ColyseusService],
+  exports: [ColyseusService],
+})
 export class ColyseusModule {
-  constructor() {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { createColyseusServer } = require('./colyseus.server')
-    createColyseusServer()
+  constructor(private readonly colyseusService: ColyseusService) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createColyseusServer } = require('./colyseus.server') as {
+      createColyseusServer: (svc: ColyseusService) => void;
+    };
+    createColyseusServer(colyseusService);
   }
 }
