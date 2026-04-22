@@ -8,118 +8,141 @@ public class NetworkManager : MonoBehaviour
     public static NetworkManager Instance { get; private set; }
 
     [SerializeField] private string serverUrl = "ws://localhost:2567";
-    [SerializeField] private string roomName = "game_room";
+    [SerializeField] private string roomName  = "fogbound_room";
 
     private Client _client;
-    private Room<NoState> _room;
+    private Room<FogboundState> _room;
     private bool _isConnected;
     private string _playerId;
     private string _authToken;
 
-    public bool IsConnected => _isConnected;
-    public string PlayerId => _playerId;
+    public bool IsConnected   => _isConnected;
+    public bool IsServerMode  => _isConnected;
+    public string PlayerId    => _playerId;
+
+    [System.Serializable]
+    private class BotControlMessage { public string playerId; }
 
     private void Awake()
     {
         if (Instance != null && Instance != this)
             Destroy(Instance.gameObject);
-
         Instance = this;
     }
 
     /// <summary>
-    /// Stores the player's auth token and ID, and creates the Colyseus client.
-    /// Call this before connecting to a room.
+    /// Stores auth credentials and creates the Colyseus client.
+    /// Must be called before ConnectToRoom.
     /// </summary>
-    /// <param name="authToken">The authenticated player's token.</param>
-    /// <param name="playerId">The authenticated player's unique identifier.</param>
     public void Initialize(string authToken, string playerId)
     {
         _authToken = authToken;
-        _playerId = playerId;
-        _client = new Client(serverUrl);
+        _playerId  = playerId;
+        _client    = new Client(serverUrl);
     }
 
     /// <summary>
-    /// Asynchronously joins or creates a game room on the Colyseus server for the given map.
+    /// Joins or creates a fogbound_room. On success wires schema sync to GameStateSync.
     /// </summary>
-    /// <param name="mapId">The identifier of the map/session to join or create.</param>
     public async Task ConnectToRoom(string mapId)
     {
+        if (_client == null)
+        {
+            Debug.LogError("[Network] Call Initialize() before ConnectToRoom().");
+            return;
+        }
+
         try
         {
-            Dictionary<string, object> options = new Dictionary<string, object>
+            var options = new Dictionary<string, object>
             {
-                { "token", _authToken },
+                { "token",    _authToken },
                 { "playerId", _playerId },
-                { "mapId", mapId }
+                { "mapId",    mapId }
             };
 
-            _room = await _client.JoinOrCreate(roomName, options);
+            _room = await _client.JoinOrCreate<FogboundState>(roomName, options);
             _isConnected = true;
+
+            Debug.Log($"[Network] Connected to room {_room.RoomId}");
+
+            // Tell InputManager which player we are
+            InputManager.Instance?.SetLocalPlayer(_playerId);
+
             SetupRoomListeners();
-            Debug.Log("Connected to room");
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"Failed to connect to room: {e.Message}");
+            Debug.LogError($"[Network] Failed to connect: {e.Message}");
             _isConnected = false;
         }
     }
 
     /// <summary>
-    /// Asynchronously leaves the current room and marks the client as disconnected.
+    /// Sends a move_explorer message to the server.
+    /// Does nothing if not connected.
+    /// </summary>
+    public async Task SendMoveExplorer(string explorerId, int targetX, int targetY)
+    {
+        if (!_isConnected || _room == null) return;
+
+        var payload = new Dictionary<string, object>
+        {
+            { "explorerId", explorerId },
+            { "targetX",    targetX },
+            { "targetY",    targetY }
+        };
+        await _room.Send("move_explorer", payload);
+    }
+
+    /// <summary>
+    /// Sends an end_turn message to the server.
+    /// </summary>
+    public async Task SendEndTurn()
+    {
+        if (!_isConnected || _room == null) return;
+        await _room.Send("end_turn", new { });
+    }
+
+    /// <summary>
+    /// Leaves the current room gracefully.
     /// </summary>
     public async Task Disconnect()
     {
         if (_room != null)
             await _room.Leave();
-
         _isConnected = false;
-        Debug.Log("Disconnected from room");
+        Debug.Log("[Network] Disconnected");
     }
 
-    /// <summary>
-    /// Sends a game action message with the given type and payload to the server.
-    /// Does nothing if not currently connected.
-    /// </summary>
-    /// <param name="actionType">The message type identifier.</param>
-    /// <param name="payload">The data payload to send alongside the action.</param>
-    public async Task SendAction(string actionType, object payload)
+    private async void OnDestroy()
     {
-        if (!_isConnected)
-            return;
-
-        await _room.Send(actionType, payload);
-    }
-
-    /// <summary>
-    /// Attempts to reconnect to the server by joining or creating a room again.
-    /// </summary>
-    public async Task Reconnect()
-    {
-        Debug.Log("Attempting reconnect");
-        // TODO: store and reuse last mapId
-        await ConnectToRoom(string.Empty);
+        if (_room != null)
+            await _room.Leave();
     }
 
     private void SetupRoomListeners()
     {
-        // TODO: wire up to GameStateSync
-        _room.OnMessage<object>("state_update", (message) =>
-        {
-            Debug.Log($"state_update received: {message}");
-        });
-
         _room.OnLeave += (code) =>
         {
-            Debug.Log($"Left room with code: {code}");
+            Debug.Log($"[Network] Left room ({code})");
             _isConnected = false;
         };
 
         _room.OnError += (code, message) =>
         {
-            Debug.LogError($"Room error {code}: {message}");
+            Debug.LogError($"[Network] Room error {code}: {message}");
         };
+
+        _room.OnMessage<BotControlMessage>("player_afk_bot_controlling", (msg) =>
+        {
+            Debug.Log($"[Network] {msg.playerId} is now bot-controlled");
+            if (ExplorerManager.Instance == null) return;
+            foreach (var explorer in ExplorerManager.Instance.GetPlayerExplorers(msg.playerId))
+                explorer.ShowBotBadge(true);
+        });
+
+        // Delegate all schema delta sync to GameStateSync
+        GameStateSync.Instance?.SetRoom(_room);
     }
 }

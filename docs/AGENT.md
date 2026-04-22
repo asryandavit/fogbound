@@ -197,6 +197,17 @@ Gray-square board, 2-player local/LAN match playable end to end:
 - Task 7 — Reconnection: allowReconnection(client, 60); bot takeover + "player_afk_bot_controlling" broadcast; all-bots → abandoned
 - Room name changed from 'game_room' → 'fogbound_room' (matches Unity NetworkManager task)
 
+#### Phase 3 — Unity NetworkManager Wired ✅ (2026-04-22)
+
+- Task 8 — NetworkManager.cs: Room<FogboundState>, "fogbound_room", SendMoveExplorer, bot badge, IsServerMode
+- Task 9 — GameStateSync.cs: Colyseus.Schema.Callbacks API; OnAdd for explorers/tiles/players; Listen for x/y/isRevealed; OnChange for turn state; clears local prototype explorers on first server state
+- Task 10 — Smoke test wired: backend start:dev → Unity Play → "Connected to room [id]" → tap → SendMoveExplorer → server state delta → explorer moves
+- C# schema files generated in Assets/_Game/Scripts/Network/Schema/ (FogboundState, TileSchema, ExplorerSchema, PlayerSchema, TurnStateSchema)
+- TurnManager: ApplyServerTurnState + _serverControlled flag stops local timer
+- ExplorerManager: ServerMoveExplorer (no CanMove check) + ClearAllExplorers
+- ExplorerController: ShowBotBadge (gray tint when bot-controlled)
+- InputManager: routes moves through NetworkManager.SendMoveExplorer when IsServerMode=true
+
 ---
 
 ### Next After This Sprint

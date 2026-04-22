@@ -20,19 +20,12 @@ public class ExplorerManager : MonoBehaviour
     {
         if (Instance != null && Instance != this)
             Destroy(Instance.gameObject);
-
         Instance = this;
     }
 
     /// <summary>
-    /// Spawns a new explorer on the board, initializes it with the given data and team color,
-    /// and registers it in the manager.
+    /// Spawns a new explorer, initializes it with data and team color, and registers it.
     /// </summary>
-    /// <param name="explorerId">Unique identifier for this explorer.</param>
-    /// <param name="playerId">The owning player's identifier.</param>
-    /// <param name="playerSlot">Player slot index used to pick a team color (0–3).</param>
-    /// <param name="startPosition">The starting grid position for this explorer.</param>
-    /// <returns>The newly created ExplorerController.</returns>
     public ExplorerController SpawnExplorer(string explorerId, string playerId, int playerSlot, Vector2Int startPosition)
     {
         ExplorerData data = new ExplorerData(explorerId, playerId);
@@ -50,9 +43,8 @@ public class ExplorerManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Returns the ExplorerController with the given explorer ID, or null if not found.
+    /// Returns the ExplorerController for the given ID, or null if not found.
     /// </summary>
-    /// <param name="explorerId">The unique identifier of the explorer to retrieve.</param>
     public ExplorerController GetExplorer(string explorerId)
     {
         _explorers.TryGetValue(explorerId, out ExplorerController controller);
@@ -62,7 +54,6 @@ public class ExplorerManager : MonoBehaviour
     /// <summary>
     /// Returns all explorers belonging to a specific player.
     /// </summary>
-    /// <param name="playerId">The player whose explorers to retrieve.</param>
     public List<ExplorerController> GetPlayerExplorers(string playerId)
     {
         var result = new List<ExplorerController>();
@@ -75,25 +66,19 @@ public class ExplorerManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Moves an explorer to the target grid position if it has remaining moves.
-    /// Updates BoardManager tile occupancy for both the old and new positions.
+    /// Local move: validates move count and applies to board. Used in offline mode.
     /// </summary>
-    /// <param name="explorerId">The ID of the explorer to move.</param>
-    /// <param name="targetPosition">The destination grid position.</param>
     public void MoveExplorer(string explorerId, Vector2Int targetPosition)
     {
         ExplorerController controller = GetExplorer(explorerId);
-        if (controller == null)
-            return;
+        if (controller == null) return;
 
         ExplorerData data = controller.ExplorerData;
-        if (!data.CanMove())
-            return;
+        if (!data.CanMove()) return;
 
         Vector2Int previousPosition = data.gridPosition;
         data.UseMove();
 
-        // Update tile occupants
         TileData oldTile = BoardManager.Instance.GetTile(previousPosition);
         oldTile?.RemoveOccupant(explorerId);
 
@@ -104,9 +89,43 @@ public class ExplorerManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Sets the render mode (3D model or 2D token) for all active explorers.
+    /// Server-authoritative move: bypasses move-count validation and teleports directly.
+    /// Called by GameStateSync when the server sends a position delta.
     /// </summary>
-    /// <param name="is3D">True to show 3D models; false to show 2D tokens.</param>
+    public void ServerMoveExplorer(string explorerId, Vector2Int targetPosition)
+    {
+        ExplorerController controller = GetExplorer(explorerId);
+        if (controller == null) return;
+
+        Vector2Int previousPosition = controller.ExplorerData.gridPosition;
+        if (previousPosition == targetPosition) return;
+
+        TileData oldTile = BoardManager.Instance?.GetTile(previousPosition);
+        oldTile?.RemoveOccupant(explorerId);
+
+        TileData newTile = BoardManager.Instance?.GetTile(targetPosition);
+        newTile?.AddOccupant(explorerId);
+
+        StartCoroutine(controller.MoveTo(targetPosition));
+    }
+
+    /// <summary>
+    /// Destroys all active explorer GameObjects and clears the registry.
+    /// Called by GameStateSync before applying the first server state.
+    /// </summary>
+    public void ClearAllExplorers()
+    {
+        foreach (var controller in _explorers.Values)
+        {
+            if (controller != null)
+                Destroy(controller.gameObject);
+        }
+        _explorers.Clear();
+    }
+
+    /// <summary>
+    /// Switches all explorers between 3D model and 2D token rendering.
+    /// </summary>
     public void SetAllRenderMode(bool is3D)
     {
         foreach (var controller in _explorers.Values)
@@ -114,9 +133,8 @@ public class ExplorerManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Destroys the explorer's GameObject and removes it from the manager.
+    /// Destroys one explorer's GameObject and removes it from the manager.
     /// </summary>
-    /// <param name="explorerId">The unique identifier of the explorer to remove.</param>
     public void RemoveExplorer(string explorerId)
     {
         if (_explorers.TryGetValue(explorerId, out ExplorerController controller))

@@ -101,9 +101,17 @@ public class InputManager : MonoBehaviour
     /// <param name="targetPosition">The grid position to move the selected explorer to.</param>
     public void MoveSelectedExplorer(Vector2Int targetPosition)
     {
-        ExplorerManager.Instance.MoveExplorer(_selectedExplorerId, targetPosition);
+        if (NetworkManager.Instance != null && NetworkManager.Instance.IsServerMode)
+        {
+            // Server-authoritative: send move to server; position update arrives via GameStateSync
+            _ = NetworkManager.Instance.SendMoveExplorer(_selectedExplorerId, targetPosition.x, targetPosition.y);
+        }
+        else
+        {
+            // Offline mode: apply locally
+            ExplorerManager.Instance.MoveExplorer(_selectedExplorerId, targetPosition);
+        }
         ClearSelection();
-        // TODO: send action to server via NetworkManager
     }
 
     /// <summary>

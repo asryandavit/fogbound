@@ -1,124 +1,100 @@
 using System.Collections.Generic;
+using Colyseus;
+using Colyseus.Schema;
 using UnityEngine;
 
 public class GameStateSync : MonoBehaviour
 {
     public static GameStateSync Instance { get; private set; }
 
-    [System.Serializable]
-    public class ServerTileState
-    {
-        public int x;
-        public int y;
-        public string tileType;
-        public bool isRevealed;
-        public string treasureType;
-        public int treasureValue;
-    }
-
-    [System.Serializable]
-    public class ServerExplorerState
-    {
-        public string explorerId;
-        public string playerId;
-        public int x;
-        public int y;
-        public string state;
-        public int score;
-    }
-
-    [System.Serializable]
-    public class ServerPlayerState
-    {
-        public string playerId;
-        public string username;
-        public int score;
-        public bool isBot;
-        public bool isConnected;
-    }
-
-    [System.Serializable]
-    public class ServerGameState
-    {
-        public string matchId;
-        public string status;
-        public int currentTurn;
-        public string currentPlayerId;
-        public List<ServerTileState> tiles;
-        public List<ServerExplorerState> explorers;
-        public List<ServerPlayerState> players;
-    }
-
-    private ServerGameState _lastState;
+    private Room<FogboundState> _room;
+    private readonly Dictionary<string, int> _playerSlots = new Dictionary<string, int>();
+    private readonly List<string>            _playerIds   = new List<string>();
+    private bool _serverExplorersReceived;
 
     private void Awake()
     {
         if (Instance != null && Instance != this)
             Destroy(Instance.gameObject);
-
         Instance = this;
     }
 
     /// <summary>
-    /// Deserializes a JSON game state string from the server and applies it to all Unity systems.
+    /// Wires all Colyseus schema delta callbacks. Call this immediately after room join.
     /// </summary>
-    /// <param name="jsonState">The JSON-encoded ServerGameState received from the Colyseus server.</param>
-    public void ApplyState(string jsonState)
+    public void SetRoom(Room<FogboundState> room)
     {
-        ServerGameState state = JsonUtility.FromJson<ServerGameState>(jsonState);
-        _lastState = state;
+        _room = room;
+        var state     = room.State;
+        var callbacks = Callbacks.Get(room);
 
-        ApplyTiles(state.tiles);
-        ApplyExplorers(state.explorers);
-        ApplyPlayers(state.players);
-
-        GameManager.Instance.SetCurrentPlayer(state.currentPlayerId);
-    }
-
-    /// <summary>
-    /// Returns the last server game state that was applied.
-    /// </summary>
-    public ServerGameState GetLastState()
-    {
-        return _lastState;
-    }
-
-    private void ApplyTiles(List<ServerTileState> tiles)
-    {
-        if (tiles == null)
-            return;
-
-        foreach (ServerTileState serverTile in tiles)
+        // ── Players ──────────────────────────────────────────────────────────
+        callbacks.OnAdd(s => s.players, (key, player) =>
         {
-            Vector2Int position = new Vector2Int(serverTile.x, serverTile.y);
-            TileData tile = BoardManager.Instance.GetTile(position);
-            if (tile == null)
-                continue;
+            if (!_playerSlots.ContainsKey(key))
+                _playerSlots[key] = (int)player.slotNumber;
 
-            if (serverTile.isRevealed)
-                FogOfWarManager.Instance.RevealTile(position);
-        }
-    }
+            if (!_playerIds.Contains(key))
+            {
+                _playerIds.Add(key);
+                TurnManager.Instance?.InitializePlayers(new List<string>(_playerIds));
+            }
+        });
 
-    private void ApplyExplorers(List<ServerExplorerState> explorers)
-    {
-        if (explorers == null)
-            return;
-
-        foreach (ServerExplorerState serverExplorer in explorers)
+        // ── Explorers ─────────────────────────────────────────────────────────
+        callbacks.OnAdd(s => s.explorers, (key, explorer) =>
         {
-            ExplorerController controller = ExplorerManager.Instance.GetExplorer(serverExplorer.explorerId);
-            if (controller == null)
-                continue;
+            // On first server explorer — clear the local prototype explorers from GameInitializer
+            if (!_serverExplorersReceived)
+            {
+                _serverExplorersReceived = true;
+                ExplorerManager.Instance?.ClearAllExplorers();
+            }
 
-            Vector2Int serverPosition = new Vector2Int(serverExplorer.x, serverExplorer.y);
-            if (controller.ExplorerData.gridPosition != serverPosition)
-                ExplorerManager.Instance.MoveExplorer(serverExplorer.explorerId, serverPosition);
-        }
+            int  slot = _playerSlots.TryGetValue(explorer.playerId, out int s2) ? s2 : 0;
+            var  pos  = new Vector2Int((int)explorer.x, (int)explorer.y);
+
+            if (ExplorerManager.Instance?.GetExplorer(explorer.explorerId) == null)
+                ExplorerManager.Instance?.SpawnExplorer(explorer.explorerId, explorer.playerId, slot, pos);
+
+            // Watch position — fire on either axis change
+            callbacks.Listen(explorer, e => e.x, (_, __) => SyncExplorerPos(explorer));
+            callbacks.Listen(explorer, e => e.y, (_, __) => SyncExplorerPos(explorer));
+        });
+
+        // ── Tiles ─────────────────────────────────────────────────────────────
+        callbacks.OnAdd(s => s.tiles, (key, tile) =>
+        {
+            // Sync initial revealed state
+            if (tile.isRevealed)
+                FogOfWarManager.Instance?.RevealTile(new Vector2Int((int)tile.x, (int)tile.y));
+
+            callbacks.Listen(tile, t => t.isRevealed, (isRevealed, _) =>
+            {
+                if (isRevealed)
+                    FogOfWarManager.Instance?.RevealTile(new Vector2Int((int)tile.x, (int)tile.y));
+            });
+        });
+
+        // ── Turn state ────────────────────────────────────────────────────────
+        // Use broad OnChange on root state; handler is cheap and idempotent.
+        callbacks.OnChange(state, () => ApplyTurnState(state));
     }
 
-    private void ApplyPlayers(List<ServerPlayerState> players)
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static void SyncExplorerPos(ExplorerSchema explorer)
     {
-        // TODO: update player UI scores and connection status
+        var pos = new Vector2Int((int)explorer.x, (int)explorer.y);
+        ExplorerManager.Instance?.ServerMoveExplorer(explorer.explorerId, pos);
+    }
+
+    private static void ApplyTurnState(FogboundState state)
+    {
+        if (state.turnState == null) return;
+        if (string.IsNullOrEmpty(state.turnState.currentPlayerId)) return;
+        TurnManager.Instance?.ApplyServerTurnState(
+            state.turnState.currentPlayerId,
+            (int)state.turnState.turnNumber);
     }
 }

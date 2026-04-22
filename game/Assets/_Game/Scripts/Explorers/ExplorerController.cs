@@ -91,6 +91,16 @@ public class ExplorerController : MonoBehaviour
         // TODO: add selection ring or glow effect
     }
 
+    /// <summary>
+    /// Shows or hides a visual bot-control indicator on this explorer.
+    /// When active the token is tinted gray. Full badge art added in Phase 5.
+    /// </summary>
+    public void ShowBotBadge(bool active)
+    {
+        if (token2D != null)
+            token2D.color = active ? Color.Lerp(teamColor, Color.gray, 0.6f) : teamColor;
+    }
+
     private void ApplyTeamColor()
     {
         if (token2D != null)
