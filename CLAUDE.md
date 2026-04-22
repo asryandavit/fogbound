@@ -144,8 +144,13 @@ Available tools (37/60 loaded):
 - assets-find → find assets in project
 - package-add → install Unity packages
 
-When using MCP tools always use npx unity-mcp-cli
-Example: npx unity-mcp-cli run-tool scene-list-opened
+ALWAYS use --url flag with Unity MCP CLI:
+  npx unity-mcp-cli run-tool scene-list-opened \
+    --url http://localhost:53752
+
+Never run unity-mcp-cli from the project root.
+Either use --url OR cd into game/ folder first.
+The --url flag is always preferred and most reliable.
 
 ## Database Workflow
 
