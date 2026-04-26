@@ -72,7 +72,7 @@ Create backend/src/colyseus/schema/FogboundState.ts
 
 #### Task 6 — Wire Colyseus into NestJS
 Create backend/src/colyseus/colyseus.module.ts
-Register GameRoom with the Colyseus server on port 2567
+Register GameRoom with the Colyseus server on port 4567
 Export ColyseusService that NestJS can query for room status
 
 #### Task 7 — Reconnection Logic
@@ -89,7 +89,7 @@ On reconnect after limit → observer only, zero rewards
 
 #### Task 8 — NetworkManager.cs: connect to real Colyseus room
 Update game/Assets/_Game/Scripts/Network/NetworkManager.cs
-  Connect to ws://localhost:2567 on Start
+  Connect to ws://localhost:4567 on Start
   JoinOrCreate "fogbound_room"
   SendMoveExplorer(explorerId, x, y): room.Send("move_explorer", payload)
   Handle "player_afk_bot_controlling" message: show badge on explorer

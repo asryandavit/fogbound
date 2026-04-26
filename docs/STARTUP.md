@@ -19,8 +19,8 @@ Confirm: Unity green dot + MCP server green dot
 ### Step 4 — Backend (only when testing networking)
 cd /path/to/fogbound/backend
 npm run start:dev
-Confirm: NestJS running on port 3007
-Confirm: Colyseus running on port 2568
+Confirm: NestJS running on port 4007
+Confirm: Colyseus running on port 4567
 
 ### Step 5 — Claude Code (automatic)
 cd /path/to/fogbound
@@ -35,8 +35,8 @@ Type: sprint
 ## Port Reference
 PostgreSQL: 5444
 Redis:      6399
-NestJS:     3007
-Colyseus:   2568
+NestJS:     4007
+Colyseus:   4567
 Unity MCP:  53752 (may change — check AI Game Developer window)
 
 ## If Unity MCP Port Changed After Restart

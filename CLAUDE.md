@@ -42,7 +42,7 @@ If it only exists during a match → Colyseus
 ## Current Codebase State
 
 ### Backend (backend/)
-- NestJS 11, running on port 3007
+- NestJS 11, running on port 4007
 - All modules built: auth, database, players, maps,
   matches, leaderboard, shop, notifications
 - All 9 DB tables migrated and verified in DBeaver
@@ -75,8 +75,8 @@ If it only exists during a match → Colyseus
 |------------|------|
 | PostgreSQL | 5444 |
 | Redis      | 6399 |
-| NestJS     | 3007 |
-| Colyseus   | 2568 |
+| NestJS     | 4007 |
+| Colyseus   | 4567 |
 
 ## Commands
 

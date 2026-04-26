@@ -7,7 +7,7 @@ public class NetworkManager : MonoBehaviour
 {
     public static NetworkManager Instance { get; private set; }
 
-    [SerializeField] private string serverUrl = "ws://localhost:2568";
+    [SerializeField] private string serverUrl = "ws://localhost:4567";
     [SerializeField] private string roomName  = "fogbound_room";
 
     private Client _client;

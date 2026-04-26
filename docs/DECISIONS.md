@@ -41,8 +41,8 @@ numbered files, works cleanly with NestJS.
 Decision: Non-default ports for all services
 PostgreSQL: 5444
 Redis: 6399
-NestJS: 3007
-Colyseus: 2568
+NestJS: 4007
+Colyseus: 4567
 Reason: Avoid conflicts with other local projects.
 
 ## 007 — Game name: FOGBOUND
@@ -285,6 +285,15 @@ broken on Android and it's a top App Store complaint.
 Reason: Ticket to Ride and Chess.com both prove async with
 configurable timers dramatically increases concurrent games
 per player and D7/D28 retention.
+
+## 032 — Port Choices: Avoid User's Reserved Ports
+
+Decision: NestJS uses 4007, Colyseus uses 4567.
+Reason: Other projects on this developer's machine
+use 2567, 3000–3011, 3100, 5432, 5437, 5672, 6379,
+6432, 8000, 8404, 9090, 15672. FOGBOUND must avoid
+all of these to allow concurrent local development
+across multiple projects without port conflicts.
 
 ## 031 — HUD Layout: Context-Morphing Primary Button
 

@@ -53,8 +53,8 @@ fogbound/
 ## Port Assignments (Never Change These)
 - PostgreSQL:  5444
 - Redis:       6399
-- NestJS:      3007
-- Colyseus:    2568
+- NestJS:      4007
+- Colyseus:    4567
 
 ## Database Rules
 - Migration tool: node-pg-migrate
@@ -80,7 +80,7 @@ fogbound/
 - Git repository initialized
 - Docker configured (docker/docker-compose.db.yml)
 - All 9 DB tables migrated and verified
-- NestJS 11 running on port 3007
+- NestJS 11 running on port 4007
 - All backend modules built: auth, database, players, maps,
   matches, leaderboard, shop, notifications
 - Unity 6 LTS project created (game/)
@@ -114,7 +114,7 @@ fogbound/
 - All modules follow same pattern:
   imports DatabaseModule and AuthModule
   exports its own Service
-- Port: 3007 (from process.env.PORT ?? 3007)
+- Port: 4007 (from process.env.PORT ?? 4007)
 - class-validator and class-transformer installed
 - google-auth-library, passport, passport-jwt installed
 
