@@ -240,8 +240,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: caabd313e7ffa4b61a35018383783db1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkManager
-  serverUrl: ws://localhost:2567
-  roomName: game_room
+  serverUrl: ws://localhost:4567
+  roomName: fogbound_room
 --- !u!114 &40075668
 MonoBehaviour:
   m_ObjectHideFlags: 0
