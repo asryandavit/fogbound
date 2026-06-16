@@ -1,0 +1,12 @@
+# Godot 4 cache and import data — never commit
+.godot/
+
+# Export presets and exported builds
+export_presets.cfg
+*.apk
+*.aab
+*.ipa
+*.dmg
+*.exe
+*.x86_64
+*.app
