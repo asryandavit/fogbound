@@ -13,12 +13,12 @@ const EXPLORERS_PER_PLAYER: Record<number, number> = {
   15: 3, 17: 3,
 };
 
-export class GameRoom extends Room<FogboundState> {
+export class GameRoom extends Room<{ state: FogboundState }> {
   private readonly sessionToPlayerId = new Map<string, string>();
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
 
   onCreate(options: any) {
-    this.setState(new FogboundState());
+    this.state = new FogboundState();
     this.state.matchId = options.matchId || `match_${Date.now()}`;
     this.state.winCondition = options.winCondition || 'all_treasure';
     this.state.turnTimerSeconds = options.turnTimerSeconds || 60;
@@ -63,13 +63,14 @@ export class GameRoom extends Room<FogboundState> {
     if (this.state.players.size >= 2) this.startMatch();
   }
 
-  async onLeave(client: Client, consented: boolean) {
+  async onLeave(client: Client, code?: number) {
     const player = this.findPlayerBySession(client.sessionId);
     if (!player) return;
     player.isConnected = false;
     console.log(`Player disconnected: ${player.playerId}`);
 
-    if (!consented) {
+    // code 1000 = normal/intentional close; anything else = unexpected drop
+    if (code !== 1000) {
       try {
         await this.allowReconnection(client, 60);
         player.isConnected = true;

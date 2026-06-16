@@ -25,7 +25,8 @@
     "migrate:status": "node-pg-migrate status -m db/migrations"
   },
   "dependencies": {
-    "@colyseus/schema": "^1.0.46",
+    "@colyseus/schema": "^4.0.26",
+    "@colyseus/ws-transport": "^0.17.13",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
@@ -34,7 +35,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "colyseus": "^0.14.24",
+    "colyseus": "^0.17.10",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.1",
