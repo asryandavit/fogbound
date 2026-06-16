@@ -181,6 +181,36 @@ Gray-square board, 2-player local/LAN match playable end to end:
 
 ---
 
+### Godot↔Colyseus Spike ✅ (2026-06-16, branch: spike/godot-colyseus)
+
+**Verdict: Godot 4 CAN replace the Unity client.**
+
+Steps completed:
+- Godot 4.6.3 standard (GDScript) installed via Homebrew cask
+- Colyseus native SDK 0.17.11 (GDExtension) installed in godot/addons/colyseus/
+- Godot project scaffolded with Mobile rendering method
+- Two backend fixes found and applied:
+  1. `colyseus.server.ts`: use `gameServer.listen(4567)` not `httpServer.listen(4567)`
+     so Colyseus's `bindRouterToTransport()` registers `/matchmake/*` HTTP routes
+  2. `tsconfig.json`: add `"useDefineForClassFields": false` so TypeScript compiles
+     class field initializers as assignments (through the @colyseus/schema setter that
+     sets `$childType`) rather than `Object.defineProperty` which bypasses setters and
+     leaves MapSchema instances without `$childType`, crashing `broadcastPatch`
+- Spike test (godot/scenes/SpikeTest.gd) passes headlessly:
+  - Connects to ws://localhost:4567
+  - Joins `fogbound_room` with join_or_create
+  - Receives and decodes full board state as Dictionary (no `set_state_type()` needed)
+  - 169 tiles, 2 explorers, 1 player — all fields present
+
+Key GDScript 4 constraints discovered:
+- Cannot use `extends Colyseus.Schema` in external scripts (inner class limit)
+- Use untyped vars for Colyseus types (annotations resolved at parse time fail
+  if Colyseus isn't pre-cached via --import pass)
+- Native SDK decodes server schema via Reflection without set_state_type()
+- Two-pass headless import required: stub → `--import` → real script
+
+---
+
 ### Completed Tasks
 
 #### Phase 1 — Grid Abstraction + Model Layer ✅ (2026-04-22)
