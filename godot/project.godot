@@ -14,6 +14,10 @@ config/name="Fogbound"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/colyseus/plugin.gd")
+
 [rendering]
 
 renderer/rendering_method="mobile"
