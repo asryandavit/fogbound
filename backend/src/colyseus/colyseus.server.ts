@@ -7,20 +7,27 @@ import { ColyseusService } from './colyseus.service';
 export function createColyseusServer(service?: ColyseusService): Server {
   const httpServer = createServer();
 
-  httpServer.on('request', (req, res) => {
-    if (req.method === 'GET' && req.url === '/') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ name: 'fogbound-colyseus', status: 'ok' }));
-    }
-  });
-
   const gameServer = new Server({
     transport: new WebSocketTransport({ server: httpServer }),
+    greet: false,
+    // express option triggers transport.getExpressApp(), which adds Express as
+    // an HTTP request listener — required for matchmaking routes to be bound.
+    express: (app) => {
+      app.get('/', (_req, res) => {
+        res.json({ name: 'fogbound-colyseus', status: 'ok' });
+      });
+    },
   });
+
   gameServer.define('fogbound_room', GameRoom);
   if (service) service.setServer(gameServer);
-  httpServer.listen(4567, () => {
-    console.log('Colyseus server running on port 4567');
-  });
+
+  // gameServer.listen() calls bindRouterToTransport() once the HTTP server is
+  // up — this registers /matchmake/* routes that clients need for join_or_create.
+  // Previously httpServer.listen() was called directly, which skipped that step.
+  gameServer.listen(4567)
+    .then(() => console.log('Colyseus server running on port 4567'))
+    .catch((err) => console.error('Colyseus failed to start:', err));
+
   return gameServer;
 }
