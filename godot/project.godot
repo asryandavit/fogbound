@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Fogbound"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/SpikeTest.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 
 [editor_plugins]
