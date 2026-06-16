@@ -71,9 +71,10 @@ fogbound/
 - TypeScript strict mode always on
 - No any types in TypeScript
 - C# follows Unity standard conventions
-- Every feature lives on its own git branch
-- Branch naming: feature/, fix/, chore/
-- Commit messages follow conventional commits format
+- All work happens on develop; main is reserved for releases only
+- No feature branches for solo development; commit directly to develop
+- Commit after every approved task; use conventional commits (type: description)
+- Push develop to origin at minimum after each work session
 
 ## Current Status
 - Project structure created

@@ -100,11 +100,11 @@ docker compose -f docker/docker-compose.db.yml down
 
 ### Git
 ```bash
-git checkout develop    # always work on develop
-git checkout -b feature/name  # new feature branch
-git add .
-git commit -m "type: description"
-git push origin develop
+git checkout develop                  # all work happens on develop
+git add <specific-files>             # stage only what belongs to this task
+git commit -m "type: description"    # conventional commit, one per approved task
+git push origin develop              # push at minimum after each work session
+# main is reserved for releases only — never push features directly to main
 ```
 
 ## Unity MCP Server
@@ -201,7 +201,8 @@ Full rules in docs/GDD.md. Critical ones:
 
 - src/ at repo root is legacy — ignore it
 - Work only in backend/src/
-- docs/ARCHITECTURE.md and README.md are empty
+- README.md is intentionally minimal for now
+- docs/ARCHITECTURE.md will be populated during Godot architecture design
 - Use docs/CONTEXT.md as architecture reference
 - claude/ folder is gitignored (machine-specific MCP config)
 
@@ -225,6 +226,48 @@ Full rules in docs/GDD.md. Critical ones:
 4. Anything needing human visual verification
 5. Terminal/Console error count at end
 6. Recommended next steps
+
+## Living Documentation — Definition of Done
+
+Documentation is part of done. A task is not complete until
+code and docs agree. Never close a task while docs still
+describe old behavior.
+
+### Doc responsibilities
+- docs/GDD.md          — game design + rules (movement, combat,
+                          inventory, win conditions)
+- docs/DECISIONS.md    — every significant technical or design
+                          choice; append a new numbered entry,
+                          never silently change behavior without one
+- docs/CONTEXT.md      — current tech stack, port assignments,
+                          active status (update when stack changes)
+- docs/AGENT.md        — sprint progress: mark tasks done,
+                          write next sprint tasks
+- docs/ARCHITECTURE.md — how the systems are built and interact
+                          (client layers, server, network boundary)
+- docs/GODOT_CLIENT.md — Godot-specific architecture and
+                          Unity→Godot translation decisions
+
+### Rules
+- Any task that changes behavior, structure, or a decision
+  MUST update the relevant doc(s) in the SAME task.
+- If a change contradicts an existing DECISION, add a new
+  superseding DECISION rather than quietly diverging.
+- Never leave a doc describing behavior the code no longer has.
+- DECISIONS.md is append-only: never edit or delete past entries.
+- Documentation updates ship in the SAME commit as the code they
+  describe — never batched into a separate "update docs" commit.
+  Every commit must be internally consistent: code and its docs together.
+
+### Sprint ritual — evidence required before marking any task done
+Every task report back to the developer MUST include an explicit
+"Documentation" line. No task may be reported as done without it.
+
+The line must be one of:
+  Documentation: updated docs/DECISIONS.md (added entry 043 — chose X over Y);
+                 updated docs/AGENT.md (task marked done)
+  Documentation: no doc changes needed — this commit only fixes a typo in
+                 SpikeTest.gd with no behavioral or structural change
 
 ## Quick Commands
 
