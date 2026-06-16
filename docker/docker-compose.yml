@@ -1,0 +1,93 @@
+name: fogbound
+
+services:
+  fogbound_db:
+    image: postgres:17-alpine
+    container_name: fogbound_db
+    env_file:
+      - .env
+    ports:
+      - "5444:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - fogbound_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - fogbound_network
+
+  fogbound_cache:
+    image: redis:7-alpine
+    container_name: fogbound_cache
+    env_file:
+      - .env
+    ports:
+      - "6399:6379"
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD}",
+        "--appendonly",
+        "yes",
+      ]
+    volumes:
+      - fogbound_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - fogbound_network
+
+  fogbound_backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: fogbound_backend
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 4007
+      DB_HOST: fogbound_db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      DB_SSL: "false"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@fogbound_db:5432/${POSTGRES_DB}
+      REDIS_HOST: fogbound_cache
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+    ports:
+      - "4007:4007"
+      - "4567:4567"
+    depends_on:
+      fogbound_db:
+        condition: service_healthy
+      fogbound_cache:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fogbound_network
+
+networks:
+  fogbound_network:
+    driver: bridge
+
+volumes:
+  fogbound_db_data:
+  fogbound_redis_data:
