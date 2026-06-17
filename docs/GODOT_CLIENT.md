@@ -105,19 +105,44 @@ Define all schema classes as inner classes within a single `schema_defs.gd`:
 class TileSchema extends Colyseus.Schema:
     static func definition() -> Array:
         return [
-            Colyseus.Schema.Field.new("x",          Colyseus.Schema.INT32),
-            Colyseus.Schema.Field.new("y",          Colyseus.Schema.INT32),
-            Colyseus.Schema.Field.new("type",       Colyseus.Schema.STRING),
-            Colyseus.Schema.Field.new("isRevealed", Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("x",             Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("y",             Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("tileType",      Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("isRevealed",    Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("treasureType",  Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("treasureValue", Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("isOccupied",    Colyseus.Schema.BOOLEAN),
         ]
 
 class ExplorerSchema extends Colyseus.Schema:
     static func definition() -> Array:
         return [
-            Colyseus.Schema.Field.new("x",        Colyseus.Schema.INT32),
-            Colyseus.Schema.Field.new("y",        Colyseus.Schema.INT32),
-            Colyseus.Schema.Field.new("playerId", Colyseus.Schema.STRING),
-            Colyseus.Schema.Field.new("hasShield", Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("explorerId",   Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("playerId",     Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("x",            Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("y",            Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("state",        Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("score",        Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("coinCount",    Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("hasBag",       Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("hasBoat",      Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("hasShield",    Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("isBot",        Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("botMoveCount", Colyseus.Schema.NUMBER),
+        ]
+
+class PlayerSchema extends Colyseus.Schema:
+    static func definition() -> Array:
+        return [
+            Colyseus.Schema.Field.new("playerId",    Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("username",    Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("score",       Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("isBot",       Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("isConnected", Colyseus.Schema.BOOLEAN),
+            Colyseus.Schema.Field.new("slotNumber",  Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("teamColor",   Colyseus.Schema.STRING),
+            Colyseus.Schema.Field.new("baseX",       Colyseus.Schema.NUMBER),
+            Colyseus.Schema.Field.new("baseY",       Colyseus.Schema.NUMBER),
         ]
 
 class TurnStateSchema extends Colyseus.Schema:
@@ -137,15 +162,15 @@ class FogboundStateSchema extends Colyseus.Schema:
             Colyseus.Schema.Field.new("turnTimerSeconds", Colyseus.Schema.NUMBER),
             Colyseus.Schema.Field.new("tiles",     Colyseus.Schema.MAP, TileSchema),
             Colyseus.Schema.Field.new("explorers", Colyseus.Schema.MAP, ExplorerSchema),
-            Colyseus.Schema.Field.new("players",   Colyseus.Schema.MAP, null),
+            Colyseus.Schema.Field.new("players",   Colyseus.Schema.MAP, PlayerSchema),
             Colyseus.Schema.Field.new("turnState", Colyseus.Schema.REF, TurnStateSchema),
         ]
 ```
 
-⚠ These field names and types are derived from the server's FogboundState TypeScript schema.
-Verify against `backend/src/colyseus/schema/FogboundState.ts` before committing.
-The spike confirmed that Dictionary decode (without set_state_type) works; typed Schema decode
-must be integration-tested in Phase A of the Godot build sprint.
+Field names verified against backend/src/colyseus/schemas/ (GC1, 2026-06-17).
+Dictionary decode (without set_state_type) is CONFIRMED working in 0.17.11 — state arrives as
+nested Dictionaries; state_mapper.gd accesses them by key. Typed Schema decode via inner-class
+subclasses (above) was not empirically tested in GC1 and requires integration testing in GC2.
 
 ---
 
@@ -191,12 +216,24 @@ func _setup_callbacks(room) -> void:
     )
 ```
 
+**Confirmed API (GC1 empirical test, SDK 0.17.11):**
+- `Colyseus.Callbacks.of(room)` — CONFIRMED working; returns a Callbacks object
+- `on_add(state, "collection_key", func(item, key))` — CONFIRMED 3-arg form
+- `on_add(room, callback)` — INVALID; room is not a valid target
+- State is empty right after `joined`; `on_add` back-fills existing items on first server patch
+
+**Not yet empirically tested (expected from SDK docs, test in GC2):**
+- `on_remove(state, "collection_key", func(item, key))`
+- `listen(item, "field_name", func(new_val, old_val))`
+- `on_change(state, func(changes))` and `on_change(state, "field", func(val, key))`
+- Return value of `on_add`/`listen` is int handle — use `cb.remove(handle)` on cleanup
+
 **Critical callback rules:**
 - `on_add` back-fills existing items — treat it as "initial + future additions combined"
 - `on_change` does NOT cascade to nested schema properties — always attach `listen` calls
   for nested fields inside the `on_add` for their parent collection
-- When `set_state_type()` is not called, schema instances arrive as Dictionary — state_mapper
-  must handle both Dictionary and Colyseus.Schema forms (see schema_defs.gd above)
+- Schema instances arrive as Dictionary (Dictionary decode confirmed); state_mapper accesses
+  fields by string key (e.g. `tile_dict["isRevealed"]`)
 - Store handles returned by `listen`, `on_add`, `on_remove`, `on_change` and call
   `cb.remove(handle)` on scene cleanup to prevent dangling callbacks
 
