@@ -311,3 +311,245 @@ info and tile details; board gets remaining screen.
 Undo is non-negotiable — the single highest-leverage
 touch-grid UX feature (Into the Breach, Ticket to Ride,
 Carcassonne all confirm this).
+
+---
+
+## 033 — Client Engine: Godot replaces Unity as active client
+
+Decision: Switch active game client from Unity to Godot.
+Unity game/ folder is frozen as a read-only fallback
+and must never be modified. All client work happens in
+godot/.
+Reason: Unity's binary-format scenes and prefabs create
+friction in AI-assisted development. Godot's text-format
+scenes and GDScript suit a headless, AI-driven workflow.
+Validated by a spike test that connected to fogbound_room
+and decoded the full board state (169 tiles) from the live
+Colyseus server.
+Security: neutral.
+
+## 034 — Client Language: GDScript, standard build
+
+Decision: GDScript on the standard (non-.NET) Godot build.
+.NET/Mono build is rejected.
+Reason: Best AI tooling support and code generation.
+The official Colyseus native SDK targets GDScript only.
+.NET adds a runtime dependency, complicates CI, and is
+unsupported by the native SDK.
+Security: neutral.
+
+## 035 — Client Runtime: Godot 4.6.3 stable
+
+Decision: Pin to Godot 4.6.3 stable. Do not use 4.7
+release candidates. Upgrade only when 4.7 ships as
+plain 4.7-stable and at a deliberate, safe sprint
+boundary — never mid-feature.
+Reason: Release candidates are under active test and
+not production-ready. 4.6.3 is the verified-stable
+release at this decision date.
+Security: neutral.
+
+## 036 — Realtime SDK: Colyseus native GDScript SDK 0.17.11
+
+Decision: Use the official Colyseus native GDScript SDK
+(colyseus/native-sdk), pinned at 0.17.11 (GDExtension,
+beta). This matches the Colyseus 0.17 server protocol.
+Never update the SDK automatically — only deliberately.
+Reason: The only official SDK targeting the Colyseus
+0.17 wire protocol. Version 0.17.11 was confirmed
+working in the connection spike.
+Security: pin version; every update requires deliberate
+review of native binary changes before merging.
+
+## 037 — Workflow: Single-branch development
+
+Decision: All work on develop; main is reserved for
+releases only. No feature branches. Commit after every
+approved task. Push develop to origin at minimum after
+each work session.
+Reason: Solo-developer workflow; feature branches add
+merge overhead with no isolation benefit. Small, frequent
+conventional commits to develop provide equivalent safety.
+Security: neutral; risk mitigated by frequent commit/push.
+
+## 038 — Living Documentation: docs are part of done
+
+Decision: Every task that changes behavior, structure,
+or a decision must update the relevant doc(s) in the
+same commit. DECISIONS.md is append-only; never edit
+or delete past entries. See CLAUDE.md Living Documentation
+section for the full rule and sprint ritual.
+Reason: Prevent docs from drifting from code. A task
+is not complete until code and docs agree.
+Security: neutral.
+
+## 039 — Client Architecture: one-directional data flow
+
+Decision: Data flows in one direction only.
+Colyseus SDK → network_manager → state_mapper →
+game_state store → View layer. Player input flows back
+as a REQUEST from the View through network_manager to
+the server; the server applies it and sends a state
+delta. Views are physically incapable of mutating state.
+Reason: Enforces server-authority (Decision 008). Keeps
+rendering logic decoupled from state logic. game_state
+is testable offline without a live server.
+Security: views physically cannot mutate game state,
+so a tampered or buggy client can only send requests
+the server is free to reject. Directly enforces 008.
+
+## 040 — State Store: game_state.gd decoupled from network
+
+Decision: game_state.gd is a pure GDScript autoload
+that holds current match state and emits change signals.
+It has no Colyseus import. state_mapper.gd (in
+scripts/network/) translates raw SDK data into
+game_state updates and is the only consumer of raw
+server data shapes.
+Reason: Testable offline without a live server.
+Decoupled from SDK churn — only state_mapper.gd needs
+updating when SDK data shapes change.
+Security: neutral.
+
+## 041 — Folder Structure: responsibility-based layout
+
+Decision: godot/ uses:
+  autoloads/   — config.gd, network_manager.gd, game_state.gd
+  scenes/      — match/{board,explorers,hud}, menu/, shared/
+  scripts/     — network/state_mapper.gd + per-scene scripts
+  resources/   — .tres definitions (TileDefinition, etc.)
+  assets/      — art, audio (source only; PCK/PAD for dist.)
+  tests/       — GUT test files
+Reason: Responsibility-based grouping scales to the full
+tile library and multiple scenes without restructuring.
+Security: no file or folder is a place for secrets;
+client ships with none.
+
+## 042 — Autoloads: config, network_manager, game_state
+
+Decision: Three project autoloads registered in order:
+  1. config.gd          — environment + server URL, NO secrets
+  2. network_manager.gd — owns the Colyseus connection
+  3. game_state.gd      — state store and change signals
+state_mapper.gd lives in scripts/network/ (not an
+autoload; called by network_manager.gd).
+Reason: Autoloads give global access without singleton
+boilerplate. Three is minimal — one per responsibility.
+config must be first so network_manager can read the URL.
+Security: config.gd holds only non-secret public
+endpoints. Production must use wss:// and https:// only;
+never unencrypted outside local development.
+
+## 043 — SDK Boundary: only network_manager.gd touches Colyseus.*
+
+Decision: Only network_manager.gd may import or reference
+Colyseus.*. Only state_mapper.gd may consume raw SDK
+data (Dictionary or Schema instances). No other file
+may reference the SDK or raw server data shapes directly.
+Reason: Isolates beta SDK churn to one file. When the
+SDK API changes, only network_manager.gd requires edits.
+Security: creates one audited chokepoint for all server
+I/O, making it easier to enforce data shape validation
+and prevent raw untrusted server data from reaching
+view code.
+
+## 044 — State Consumption: Colyseus.Callbacks pattern
+
+Decision: Use Colyseus.Callbacks.of(room) for all state
+listening. Do not poll get_state() in _process().
+on_add back-fills existing items on first call, then
+fires for new additions. Nested listeners (e.g. tile
+properties) must be attached inside the on_add callback
+for their parent collection, not at the top level —
+on_change does NOT cascade to nested schemas. listen()
+watches a specific property on a schema instance.
+Reason: Official recommended SDK pattern; delta-driven
+and efficient at 169–289 tiles.
+Security: neutral.
+
+## 045 — Reconnection: dumb client, server re-sync on rejoin
+
+Decision: On disconnect, show "Reconnecting…" overlay.
+Let the SDK auto-reconnect (Room.reconnected signal fires
+on success). On rejoin, fully re-hydrate game_state from
+the server's authoritative state. No local state
+reconciliation or client-side prediction.
+Reconnection backoff is tunable via
+room.set_reconnection_options(options: Dictionary).
+Reason: Simpler and safer than client-side prediction.
+Client always defers to server truth on reconnect.
+Security: client always re-syncs to server truth on
+reconnect; prevents the client from drifting to a
+self-serving state during a disconnection window.
+
+## 046 — Authentication: anonymous now, JWT seam for later
+
+Decision: Client connects anonymously in the initial
+build. network_manager.gd includes an auth-ready seam
+(set_auth_token / client.auth.set_token) that is wired
+but unused. Implement JWT auth as its own sprint when
+accounts, leaderboards, and matchmaking are built.
+Reason: Unblocks all gameplay work. Auth is orthogonal
+to state sync and rendering. Adding it later requires
+only network_manager.gd changes.
+Security: tokens (when added) must use OS secure storage
+(iOS Keychain / Android Keystore); never plain files,
+logs, or user:// plaintext. Client holds no secrets.
+All validation is server-side. Production uses wss://.
+
+## 047 — Match Scene Tree: GameWorld + HUD split
+
+Decision: Match scene root has two children:
+  GameWorld (Node2D) — moves with Camera2D. Contains:
+    BoardLayer  (TileMapLayer) — terrain + tile state
+    FogLayer    (TileMapLayer) — fog from tile.isRevealed
+    Explorers   (Node2D)       — Explorer.tscn instances
+    Camera2D rig (Decision 025 math)
+  HUD (CanvasLayer, layer 1) — fixed to screen. Contains:
+    TopBar, ActionStrip, ExplorerMiniCard
+Board rendered as two TileMapLayer nodes, NOT one node
+per tile (Decision 021 perf rule). Explorers individually
+instanced (few, interactive, need per-instance signals).
+Fog derived from server tile.isRevealed — never computed
+client-side. Camera auto-pan on local player's turn only.
+Reason: TileMapLayer is Godot 4's correct grid perf
+pattern. CanvasLayer pins HUD independently of camera.
+Security: camera never follows opponent explorer moves,
+preventing accidental fog or position leak to local player.
+
+## 048 — Signals: narrow, split by ownership
+
+Decision: Two signal namespaces.
+network_manager.gd emits transport signals:
+  connection_state_changed(state: String)
+  server_message(type: String, data: Dictionary)
+game_state.gd emits game-truth signals:
+  state_initialized
+  tile_changed(coord: String)
+  explorer_added(id: String)
+  explorer_moved(id: String)
+  explorer_removed(id: String)
+  player_changed(id: String)
+  turn_changed
+  match_ended(winner_id: String)
+No other autoload or scene node emits these signals.
+View nodes subscribe to game_state signals only —
+never to SDK events directly.
+Reason: One emitter per domain. Narrow signals mean
+each receiver processes only what it needs.
+Security: neutral.
+
+## 049 — Fog of War: visual-only at launch (known security risk)
+
+Decision: At launch, the full board state is sent over
+the wire and the client hides unrevealed tiles visually.
+A modified client could read hidden tile data.
+Server-side StateView filtering (sending only revealed
+tile data per player) is explicitly deferred.
+Reason: @colyseus/schema StateView is in beta with
+rough edges at decision date; defer to avoid blocking
+soft launch.
+Security: REAL information leak for competitive play.
+Acceptable for soft launch / closed friend groups.
+MUST revisit before any public competitive matchmaking.
+This is an open security debt item.

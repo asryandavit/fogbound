@@ -17,9 +17,10 @@ Full context in docs/:
 
 ## Architecture Invariants — Never Break
 
-- Unity client (game/) is PURE RENDERER only
+- The game client (godot/) is PURE RENDERER only
   Never computes game state, validates moves, or runs AI
   Only renders what server sends and forwards input
+  (Unity game/ is frozen — same invariant applied there)
 
 - Colyseus owns live match state:
   turns, fog reveals, combat, bot moves
@@ -49,25 +50,38 @@ If it only exists during a match → Colyseus
 - Auth: Google + Apple Sign In + JWT
 - ORM: Drizzle, migrations: node-pg-migrate
 
-### Unity Client (game/)
+### Colyseus Server (backend/src/colyseus/)
+- GameRoom implemented: onCreate, onJoin, onLeave,
+  onMessage "move_explorer", reconnection logic
+- FogboundState schema: tiles, explorers, players,
+  turnState (MapSchema + Schema decorators)
+- GameRules: isValidMove, applyMove, resolveCombat,
+  checkWinCondition (pure TypeScript, no Unity dep)
+- Room name: fogbound_room, port 4567
+- Reconnection: allowReconnection(client, 60); bot
+  takeover after 3 moves + "player_afk_bot_controlling"
+  broadcast (Decision 011, 012, 029)
+
+### Godot Client (godot/) — ACTIVE CLIENT
+- Godot 4.6.3 standard GDScript build
+- Colyseus native SDK 0.17.11 installed (addons/colyseus/)
+- Connection spike passed: joined fogbound_room, decoded
+  full board state (169 tiles, 2 explorers) as Dictionary
+- Architecture designed — see docs/ARCHITECTURE.md and
+  docs/GODOT_CLIENT.md
+
+### Unity Client (game/) — FROZEN FALLBACK, DO NOT MODIFY
 - Unity 6 LTS (6000.6.6f1), Universal 2D
 - Scene: GameBoard (game/Assets/_Game/Scenes/)
-- All manager scripts attached to GameManager GameObject:
+- 13×13 board, fog of war, 4 explorers (2 per player)
+- All manager scripts on GameManager GameObject:
   GameManager, TurnManager, BoardManager,
   FogOfWarManager, ExplorerManager, NetworkManager,
   GameStateSync, InputManager, GameInitializer
-- CameraController on Main Camera
-- Prefabs: Tile.prefab, Explorer.prefab
-- Board initializes at 13x13 on Play
-- 4 explorers spawn (2 per player, 2 players)
-- Starting rows revealed, fog covers middle
-- Known visual issue: terrain colors may not show
-  on revealed starting rows — check TileController
-
-### Colyseus Server
-- DOES NOT EXIST YET — biggest missing piece
-- NetworkManager.cs and GameStateSync.cs are stubs
-- Must be built inside backend/src/colyseus/
+- NetworkManager.cs and GameStateSync.cs are Colyseus
+  stubs (never completed — Godot client supersedes this)
+- Known visual issue: terrain colors may not show on
+  revealed starting rows — TileController
 
 ## Ports (Fixed — Never Change)
 
@@ -171,6 +185,35 @@ Every module follows this shape:
 - No any types, TypeScript strict mode
 - module/moduleResolution: node16
 
+## Client Security Rules
+
+These rules apply on every godot/ task without exception.
+
+- No secrets in the client, ever. No API keys, database
+  credentials, private keys, or tokens hardcoded anywhere
+  in godot/. Secrets live only on the backend.
+- No hardcoded endpoints. Server URLs come from config.gd
+  only. Production uses wss:// and https:// only — never
+  unencrypted outside local development.
+- Auth tokens (when added) use OS secure storage: iOS
+  Keychain or Android Keystore. Never store tokens in
+  plain files, logs, print() output, or plaintext in
+  user://.
+- Client never trusts itself. All game rules and
+  validation are server-side. The client renders state
+  and sends requests; views cannot mutate state.
+- One SDK boundary: only network_manager.gd may import
+  or call Colyseus.*. Only state_mapper.gd may ingest
+  raw server data, and it must validate data shapes
+  before passing them onward.
+- No sensitive data in logs. No tokens, no full
+  player-state dumps, especially in production builds.
+  Use push_warning/push_error for structural issues
+  only — never log data content.
+- Dependencies pinned and reviewed. The Colyseus SDK
+  and all addons are version-pinned. Updates are
+  deliberate — never automatic.
+
 ## Unity Coding Rules
 
 - New Input System ONLY (UnityEngine.InputSystem)
@@ -202,7 +245,7 @@ Full rules in docs/GDD.md. Critical ones:
 - src/ at repo root is legacy — ignore it
 - Work only in backend/src/
 - README.md is intentionally minimal for now
-- docs/ARCHITECTURE.md will be populated during Godot architecture design
+- docs/ARCHITECTURE.md — client/server architecture (populated)
 - Use docs/CONTEXT.md as architecture reference
 - claude/ folder is gitignored (machine-specific MCP config)
 

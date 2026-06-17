@@ -7,7 +7,8 @@ Explorers navigate fog-covered islands collecting gems and coins.
 Inspired by Jackal board game mechanics but fully original.
 
 ## Tech Stack
-- Game Client:     Unity 6 LTS (6000.x, Universal 2D, C#)
+- Game Client:     Godot 4.6.3 stable (GDScript, standard build)
+                   [Unity 6 LTS frozen as read-only fallback in game/ — never modified]
 - Backend:         NestJS (Node.js 24, TypeScript)
 - Realtime:        Colyseus (game rooms, live state sync)
 - Database:        PostgreSQL (latest stable)
@@ -48,7 +49,8 @@ fogbound/
 │   └── db/
 │       ├── migrations/
 │       └── seeds/
-└── game/            ← Unity project
+├── game/            ← Unity project (frozen fallback)
+└── godot/           ← Active Godot client
 
 ## Port Assignments (Never Change These)
 - PostgreSQL:  5444
@@ -79,15 +81,21 @@ fogbound/
 ## Current Status
 - Project structure created
 - Git repository initialized
-- Docker configured (docker/docker-compose.db.yml)
+- Docker configured (docker/docker-compose.db.yml + docker-compose.yml)
 - All 9 DB tables migrated and verified
 - NestJS 11 running on port 4007
 - All backend modules built: auth, database, players, maps,
   matches, leaderboard, shop, notifications
-- Unity 6 LTS project created (game/)
-- GameBoard scene with 13×13 board, fog of war, 4 explorers
-- Colyseus server NOT YET BUILT (biggest missing piece)
-- NetworkManager.cs and GameStateSync.cs are stubs
+- Colyseus server built (backend/src/colyseus/): fogbound_room
+  defined; GameRoom, FogboundState schema, GameRules implemented
+- Unity 6 LTS project (game/) frozen as read-only fallback;
+  GameBoard scene has 13×13 board, fog of war, 4 explorers
+- Active client: Godot 4.6.3 GDScript (godot/)
+  Colyseus native SDK 0.17.11 installed (addons/colyseus/)
+  Connection spike passed: joined fogbound_room, decoded full
+  board state (169 tiles, 2 explorers) as Dictionary
+  Client architecture designed — see docs/ARCHITECTURE.md
+  and docs/GODOT_CLIENT.md
 
 ## Bot & Reconnection Rules
 - When player disconnects bot takes over immediately
