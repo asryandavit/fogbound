@@ -6,19 +6,20 @@
 
 1. [Game Overview](#game-overview)
 2. [Board](#board)
-3. [Players and Bases](#players-and-bases)
-4. [Movement](#movement)
-5. [Inventory](#inventory)
-6. [Combat](#combat)
-7. [Scoring](#scoring)
-8. [Win Conditions](#win-conditions)
-9. [Turn Timer](#turn-timer)
-10. [Tile Library](#tile-library)
-11. [HUD Layout](#hud-layout)
-12. [Camera Behavior](#camera-behavior)
-13. [UX Patterns](#ux-patterns)
-14. [Visual Identity](#visual-identity)
-15. [V1 vs V2 Scope](#v1-vs-v2-scope)
+3. [Fog of War](#fog-of-war)
+4. [Players and Bases](#players-and-bases)
+5. [Movement](#movement)
+6. [Inventory](#inventory)
+7. [Combat](#combat)
+8. [Scoring](#scoring)
+9. [Win Conditions](#win-conditions)
+10. [Turn Timer](#turn-timer)
+11. [Tile Library](#tile-library)
+12. [HUD Layout](#hud-layout)
+13. [Camera Behavior](#camera-behavior)
+14. [UX Patterns](#ux-patterns)
+15. [Visual Identity](#visual-identity)
+16. [V1 vs V2 Scope](#v1-vs-v2-scope)
 
 ---
 
@@ -48,6 +49,46 @@
 | Water   | —       |
 | Ice     | —       |
 | Desert  | —       |
+
+---
+
+## Fog of War
+
+### Reveal Model — Shared
+
+- The board starts entirely face-down (every tile is fog).
+- Fog is **shared**: there is one board state for the whole match. The
+  moment any explorer reveals a tile, that tile is face-up for **every**
+  player. There is no private, per-player vision in v1.
+- Start exception: each player's entire starting row/column is revealed
+  at game start (see Players and Bases).
+
+### Reveal Trigger — Step-Only
+
+- A tile flips from fog to face-up **only when an explorer moves onto it.**
+- Adjacent tiles are **not** auto-revealed.
+- A fog tile next to a revealed tile shows an amber edge tint (see
+  UX Patterns → Explorer Selection): the player can see *that* an unknown
+  tile is there, but not *what* it is, until someone steps on it.
+- Strategic consequence: scouting unknown ground is a deliberate risk.
+  The first explorer into the dark takes whatever the tile holds; others
+  may choose to follow into already-revealed, known tiles.
+
+### Explorer Visibility — Full Transparency
+
+- Because explorers always stand on revealed tiles, **every explorer's
+  position is visible to all players.**
+- A player may inspect any explorer — their own or an opponent's — and see
+  its full public state: position, coins, gems, treasure bag, and
+  **Shield status.**
+- Combat is therefore a game of full information: with the rule "attacker
+  wins unless the defender holds a Shield," players always know whether an
+  attack is safe. Depth lives in positioning, tempo, and whether a
+  treasure-carrier keeps its Shield up.
+
+> V2 direction: private per-player fog and hidden Shield status (combat
+> bluffing). Deferred — requires server-side per-player state filtering
+> (see DECISIONS 049, 050), never a visual-only hide.
 
 ---
 
@@ -96,6 +137,7 @@ Base appearance depends on map theme:
 - **Speed:** 1 tile per turn
 - **Directions:** Up, Down, Left, Right only
 - **Diagonal movement:** Only via special tiles
+- **Reveal:** moving onto a fog tile flips it face-up — step-only (see Fog of War)
 
 ### Tunnel Rules
 

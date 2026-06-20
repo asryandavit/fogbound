@@ -553,3 +553,44 @@ Security: REAL information leak for competitive play.
 Acceptable for soft launch / closed friend groups.
 MUST revisit before any public competitive matchmaking.
 This is an open security debt item.
+
+## 050 — Fog of War Model: shared fog, step-only reveal, full explorer transparency
+
+Decision: The fog-of-war model for v1 is defined as four rules:
+1. Shared fog. One board state shared by all players. A tile's
+   isRevealed flag is global — once any explorer reveals a tile it is
+   face-up for every player. Matches the single isRevealed boolean
+   already in TileSchema.
+2. Step-only reveal. A tile flips from fog to face-up only when an
+   explorer moves onto it. Orthogonal neighbours are NOT auto-revealed;
+   their fog edges are tinted amber in the UI (the fog-boundary tint
+   already specified in GDD UX Patterns) so a player knows an unknown
+   tile is there but cannot read its contents.
+3. Explorers always visible. Because explorers stand on revealed tiles,
+   every explorer's position is visible to all players. No vision filtering.
+4. Full explorer transparency. A player may inspect any explorer (their
+   own or an opponent's) and see all of its public state: position, coin
+   and gem count, treasure bag, and Shield status. Combat is fully
+   deterministic information — no hidden Shield.
+
+Reason: Matches the Jackal inspiration (shared, step-flip board) and the
+schema the build thread already wrote (single isRevealed boolean — no
+rework, no thread drift). Step-only preserves fog tension and turns
+scouting into a real choice (lead-and-risk vs. trail-into-safe-ground),
+which works with shared visibility rather than against it. Full
+transparency leans into the already-deterministic combat rule (attacker
+wins unless defender has Shield), shifting depth to positioning and
+Shield management. Simplest model to reach the gray-box milestone.
+
+Security: Net positive. Per Decision 049 the full board state is already
+on the wire and only hidden visually. Showing everything leaves nothing
+hidden to cheat, so this model does NOT add to the 049 debt. Hiding any
+explorer field (e.g. a secret Shield) would require the deferred
+server-side StateView per-player filtering to be real rather than
+cosmetic — explicitly out of scope for v1.
+
+Future (V2): Per-player fog (private vision) and Shield-bluffing (hidden
+Shield status) are a coherent V2 upgrade. They MUST ship together with
+the server-side StateView filtering named in Decision 049 — never as a
+visual-only hide. Tracked as the competitive-play hardening item
+alongside 049.
