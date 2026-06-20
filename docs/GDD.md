@@ -401,3 +401,22 @@ Orchestral-folk hybrid. Instruments: strings, acoustic guitar, pan flute/tin whi
 Hexagon maps, triangle maps, bag expansion tuning (3+1→5+2), alliance mechanic animation polish, additional 12–15 landmark tile popups, cross-platform Steam port, Switch port, foldable Flex Mode, MFi/controller support, replays/share gifs, clan/guild systems, ELO ladder, legendary foil shader, spectator mode, season pass cosmetics, daily puzzle mode, weekly event boards.
 
 **Never (any version):** energy systems, gacha, pay-to-progress, card-level power tiers.
+
+### Future / Exploratory (post-launch — captured, not yet designed)
+
+- **Single-player vs AI:** reuses the server-side MCTS bot (Decisions 003,
+  011) wrapped in a solo match flow. Same engine that fills in for
+  disconnected players — mostly UI, not new AI.
+- **AI move help / coach:** optional hint surfacing the MCTS bot's
+  recommended move, or a tile explanation. Cheapest version piggybacks on
+  the bot already being built; natural-language coaching is a larger lift.
+  Integrity rule: hints in single-player and practice ONLY — never ranked
+  or competitive (an AI advisor in ranked is cheating; same spirit as the
+  camera fog-integrity rule, Decision 025). Any helper must use only the
+  asking player's visible state — trivial under the current shared +
+  full-transparency fog model (Decision 050), mandatory to respect if
+  per-player fog lands in V2.
+- **Voice input:** framed as accessibility (extends the WCAG / dynamic-type
+  / colorblind commitments). Spoken move commands for hands-free or
+  low-vision play. Heaviest of the three — needs speech recognition, a grid
+  command grammar, disambiguation, and a mic-permission/privacy pass. V2+.
