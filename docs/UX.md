@@ -27,12 +27,18 @@ code, ARCHITECTURE.md, GODOT_CLIENT.md, or AGENT.md (build-thread files).
   (DECISIONS 020; GDD "HUD Layout"). Confirmed, not re-opened.
 - ☑ Future features parked — single-player vs AI, AI coach, voice input
   (GDD "V1 vs V2 Scope" → Future / Exploratory)
+- ☑ Match screen — board-first floating HUD, portrait + landscape
+  (DECISIONS 051; GDD "HUD Layout")
+- ☑ Tile reveal feedback animation + disable toggle (DECISIONS 052)
+- ☑ Device-local settings: audio + motion prefs stored on device (DECISIONS 053)
+- ☑ Visual + UX reference targets: Polytopia, Civilization, Into the Breach
+  (GDD "Visual Identity"); zoom-to-detail (GDD "Camera Behavior")
 
 ---
 
 ## Backlog (build-useful order)
 
-### 1. ☐ Match screen — portrait phone
+### 1. ☑ Match screen — portrait phone
 Keystone layout everything else references. Top bar / board / action strip
 per DECISIONS 031, showing the locked fog model (shared, step-only, amber
 fog edges). Gray-box, no art. Feeds build task GC6 (HUD) + GC3 (board).
@@ -62,7 +68,7 @@ Main menu, lobby, settings, results / victory.
 First-run experience; severity-tiered discovery popups + Tilepedia
 (DECISIONS 027).
 
-### 8. ☐ Tablet landscape layout
+### 8. ☑ Tablet landscape layout — folded into Decision 051
 Adapt the persistent left panel from DECISIONS 031 for tablet.
 
 ---

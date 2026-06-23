@@ -256,25 +256,39 @@ All remaining tiles from the full library.
 
 ## HUD Layout
 
-### Portrait Phone
+The match HUD is board-first with floating controls (Decision 051). The
+board fills the screen edge to edge; all HUD elements float over it on a
+CanvasLayer. This applies to both portrait (phone) and landscape (tablet) —
+the layout language is the same, only control placement adapts.
 
-| Zone | Height | Content |
-|---|---|---|
-| Top bar | 8% | Turn counter, active player avatar + color, treasure score, settings gear. Avatar pulses during their turn. |
-| Board | 62% | Grid with pinch/pan/double-tap zoom. |
-| Bottom action strip | 30% | Context-morphing primary button (right), Undo (left), End Turn always reachable with thumb. |
+### Shared elements
+- No top bar. A small translucent turn banner floats at the top of the
+  board (current player + turn number) — on-map messaging.
+- Player score labels float on the board near each base (e.g. "You",
+  "Rival").
+- Floating circular controls in the thumb zone: Menu, Stats, End Turn.
+  End Turn is the gold primary action, under the dominant thumb.
+- Explorers are selected by direct tap — there is no "Select explorer" button.
+- Undo is contextual: it appears only while a move is pending or just made,
+  then disappears. Undo capability is non-negotiable; only the persistent
+  button is gone.
+- No minimap for ≤13×13 (zoomed-out view is the minimap); toggleable
+  minimap for 15×15 / 17×17.
 
-**Explorer mini card** (when explorer selected): slides in from right — name, inventory slots, moves remaining, HP/shield icons. Non-blocking.
+### Portrait (phone)
+Controls sit along the bottom edge, End Turn under the right thumb.
 
-**Context-morphing button states:** Select Explorer → Confirm Move → End Turn.
+### Landscape (tablet)
+Same floating language. The square board sits centered as an island;
+utility controls (Menu, Stats) in one bottom corner, End Turn in the other.
+The surrounding space is used for atmosphere (sea/fog) and for contextual
+panels — explorer inspection and tile detail — that slide in on demand,
+not as permanent chrome.
 
-**Undo:** always available until End Turn is pressed. Non-negotiable.
-
-**Minimap:** none for ≤13×13 (zoomed-out view is the minimap). Toggleable top-left minimap for 15×15 and 17×17.
-
-### Tablet Landscape
-
-Persistent left panel 250–320dp: player turn order, explorer info, tile detail log. Board fills remaining screen.
+### Messaging
+- On-map: transient banners (turn changes, events) float over the board.
+- Match start: a brief full-screen welcome / objective overlay on first
+  entering a match; auto-dismiss or tap to clear.
 
 ---
 
@@ -289,6 +303,7 @@ Persistent left panel 250–320dp: player turn order, explorer info, tile detail
 - **Max zoom:** 5×5 tiles visible
 - **Default on match start:** midpoint of min/max, centered on player's starting row
 - **Double-tap:** 3-level cycle — fit-to-screen → default → close (5×5 centered on tap), 350ms EaseInOutCubic
+- **Zoom-to-detail:** the closest zoom level (≤5×5 tiles) is the detail view — a tile and its immediate neighbours at full art detail. Zoom transitions are smooth tweens (Godot create_tween). See Decision 025.
 - **Auto-pan on YOUR turn start:** yes — pan only, no zoom, 450ms EaseOutQuad, only if explorers are off-screen
 - **Auto-pan on manual selection:** NO
 - **During opponent turns:** static — never follow opponent moves (fog-integrity rule)
@@ -311,6 +326,21 @@ Tap an explorer → valid destination tiles tinted blue (#3B7A98, 45% alpha). Fo
 - **Animation:** scale 0.92→1.00 + fade 220ms EaseOutBack. Dismiss 180ms EaseInCubic.
 - **Skip flag persists to save file** — not session. This is a P0 correctness requirement.
 - **Tilepedia:** pause menu "?" icon, 6 category tabs, unseen tiles shown as silhouettes with "???".
+
+### Tile Reveal Feedback
+
+When a tile is revealed (permanent, step-only — see Fog of War), it plays a
+brief flip/scale animation showing its content — a quick "what happened"
+beat (Decision 052). Landmark tiles may add a short auto-zoom emphasis
+(ties to Tile Discovery Popups). Players can disable reveal animations via
+a device-local setting (Decision 053).
+
+### Settings storage
+
+Audio and motion preferences are device-local — stored on the device, not
+synced to the account (Decision 053): sound mute, music mute, haptics,
+reduced motion, animation speed, and the tile-reveal-animation toggle.
+Adjusting them on one device does not affect another.
 
 ### Turn Transition
 
@@ -365,6 +395,7 @@ Avoid Inter (feels SaaS). Avoid Cormorant for body (hairlines crush on phones). 
 ### Art Style
 
 Painted semi-flat with depth. Reference: Sea of Thieves × Slay the Spire × Monument Valley. Warm painted textures, clean readable silhouettes, subtle rim lighting on selected tiles. Unity 6 URP 2D Renderer with baked normal maps. One mid-level illustrator scope. 512×512 source art rendered at 128pt.
+Visual + UX reference targets: The Battle of Polytopia, Civilization, and Into the Breach — for clarity, clean floating HUD, and satisfying feedback. Note: those games are isometric; FOGBOUND is flat top-down square (Decision 021) — we borrow their HUD and feel, not the projection. Tile art is authored at the 512² source resolution above specifically so it stays crisp at the closest zoom-to-detail level; all tile assets must be produced with that zoom in mind.
 
 ### Iconography
 
