@@ -594,3 +594,62 @@ Shield status) are a coherent V2 upgrade. They MUST ship together with
 the server-side StateView filtering named in Decision 049 — never as a
 visual-only hide. Tracked as the competitive-play hardening item
 alongside 049.
+
+## 051 — Match HUD: board-first with floating controls (refines 031)
+
+Decision: The match HUD is board-first. The board fills the screen edge
+to edge; all HUD elements float over it on a CanvasLayer. Same layout
+language in portrait (phone) and landscape (tablet) — only control
+placement adapts.
+- No top bar. A small translucent turn banner floats at the top of the
+  board for on-map messaging (current player + turn number). Player score
+  labels float on the board near each base (e.g. "You", "Rival").
+- Floating circular controls in the thumb zone: Menu, Stats, End Turn.
+  End Turn is the gold primary, under the dominant thumb.
+- Explorers are selected by direct tap — NO "Select explorer" button.
+- Undo is contextual: it appears only while a move is pending or just
+  made, then disappears. Undo CAPABILITY remains non-negotiable; only the
+  persistent button is removed.
+- Portrait: controls along the bottom. Landscape: utility controls in one
+  bottom corner, End Turn in the other; the square board sits centered as
+  an island, surrounding space used for atmosphere (sea/fog) and for
+  contextual panels (explorer inspection, tile detail) that slide in on
+  demand rather than permanent chrome.
+- No minimap for ≤13×13; toggleable minimap for 15×15 / 17×17 (unchanged).
+
+Refines/supersedes 031: removes the 8/62/30 split, the persistent Undo
+button, the Select button, and the permanent tablet left-panel (now
+contextual). Keeps 031 principles: thumb-reachable primary action, Undo
+capability, no minimap ≤13×13.
+Reason: Board-first floating HUD (Polytopia, Civilization, Into the Breach)
+maximizes clarity and one-handed play; contextual controls follow
+progressive-disclosure best practice; one consistent language across
+orientations.
+Security: neutral.
+
+## 052 — Tile reveal feedback animation
+
+Decision: When a tile is revealed (permanent under the step-only shared
+fog model, Decision 050), the client plays a brief flip/scale animation on
+that tile showing its content — a quick "what happened" beat. Landmark or
+major tiles may additionally trigger a short auto-zoom emphasis (ties to
+Tile Discovery Popups, Decision 027). Players can disable reveal animations
+(device-local setting, see Decision 053).
+Reason: A short motion beat communicates the result of stepping into the
+unknown — the core fog loop — without a separate screen. The disable
+option respects reduced-motion needs and player preference.
+Security: neutral; pure client-side presentation, no game logic.
+
+## 053 — Device-local settings (not account-synced)
+
+Decision: A defined set of preferences is stored on the device only and is
+NOT synced to the player account / Cloud Save: sound mute, music mute,
+haptics toggle, reduced-motion toggle, animation-speed, and the
+tile-reveal-animation toggle. Adjusting these on one device does not affect
+another. They live in Godot user:// config, never on the server.
+Reason: Audio, haptic, and motion preferences are inherently per-device
+(analogous to OS-level mute). They are pure client presentation
+preferences, not game state — consistent with the pure-renderer
+architecture (client holds no game logic or secrets). Account-synced
+settings are reserved for profile/gameplay preferences added later.
+Security: neutral; no secrets stored.
