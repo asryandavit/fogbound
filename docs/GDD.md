@@ -318,6 +318,25 @@ not as permanent chrome.
 
 Tap an explorer → valid destination tiles tinted blue (#3B7A98, 45% alpha). Fog-boundary neighbors tinted yellow (unrevealed). Enemy tiles tinted red (combat warning). Tap destination → pending state → confirm via primary button or auto-commit after 300ms (configurable in settings). Undo always available until End Turn.
 
+### Explorer Inspection
+
+Tapping any explorer — your own or an opponent's — opens the same card with
+identical fields (full transparency, Decision 050): Coins (held / capacity),
+Items (other treasure held / capacity), Bag (treasure bag held or not), and
+Shield (held or not).
+- Your explorer: actionable — board move tints are live; the footer hints the
+  next step.
+- An opponent: read-only inspect — tagged "INSPECT", no move tints, no actions.
+- Adjacent-combat preview: if one of your explorers is orthogonally adjacent
+  to the inspected opponent, the card resolves the outcome — "attack wins"
+  (no Shield) or "you'd lose — shielded" (has Shield), per Combat rules. This
+  is the core payoff of full transparency: read an attack at a glance.
+- Bot badge: a bot-controlled explorer shows the AFK/bot badge (Decision 029).
+- No HP (combat is deterministic — Shield is the only modifier) and no
+  "moves remaining" (one action per turn, Decision 054).
+- Style: dark translucent HUD card over the board; parchment popups (#F4E4BC)
+  are reserved for full-screen discovery / Tilepedia.
+
 ### Tile Discovery Popups
 
 - **6 category-intro popups** fire once per save (first reveal of any tile in that category). Categories: Treasure, Movement, Combat, Terrain, Structure, Events.

@@ -33,6 +33,8 @@ code, ARCHITECTURE.md, GODOT_CLIENT.md, or AGENT.md (build-thread files).
 - ☑ Device-local settings: audio + motion prefs stored on device (DECISIONS 053)
 - ☑ Visual + UX reference targets: Polytopia, Civilization, Into the Breach
   (GDD "Visual Identity"); zoom-to-detail (GDD "Camera Behavior")
+- ☑ Explorer inspection — full-transparency card, own vs opponent, with
+  adjacent-combat preview (DECISIONS 055; GDD "UX Patterns")
 
 ---
 
@@ -48,7 +50,7 @@ Select explorer → valid-move tints (blue/yellow/red, GDD UX Patterns) →
 pick target → confirm / Undo → End Turn. Formalize the GDD prose into an
 explicit step-by-step. Feeds GC5 (input) + GC6.
 
-### 3. ☐ Explorer inspection
+### 3. ☑ Explorer inspection
 Mini-card contents when tapping own vs. opponent explorer — cashes out the
 full-transparency rule (DECISIONS 050): position, coins, gems, bag, Shield.
 Feeds GC4 (explorers) + GC6.
