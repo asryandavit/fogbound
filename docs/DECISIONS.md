@@ -653,3 +653,33 @@ preferences, not game state — consistent with the pure-renderer
 architecture (client holds no game logic or secrets). Account-synced
 settings are reserved for profile/gameplay preferences added later.
 Security: neutral; no secrets stored.
+
+## 055 — Explorer Inspection Card: full-transparency, own vs opponent
+
+Decision: Tapping any explorer — own or opponent — opens the same inspection
+card with identical fields: Coins (held / capacity), Items (other treasure
+held / capacity), Bag (treasure bag held or not), Shield (held or not). This
+is full transparency (Decision 050) made literal.
+- Own explorer: actionable mode — board move tints are live (Decision 054);
+  the card footer hints the next action.
+- Opponent explorer: read-only inspect mode — clearly tagged, no move tints,
+  no actions.
+- Adjacent-combat preview: when one of the inspecting player's explorers is
+  orthogonally adjacent to the inspected opponent, the card resolves the
+  outcome — "attack wins" (defender has no Shield) or "you'd lose — shielded"
+  (defender has Shield), per the combat rule (attacker wins unless Shield).
+  This is the strategic payoff of full transparency.
+- Bot badge: a bot-controlled explorer shows the AFK/bot badge (Decision 029).
+- No HP: combat is deterministic (attacker wins unless Shield) — the card
+  shows Shield status, never an HP value.
+- No "moves remaining": with one action per turn (Decision 054) and move
+  tints already shown, a move counter is redundant.
+- Style: dark translucent HUD card floating over the board (consistent with
+  the in-match bottom card). Parchment (#F4E4BC) is reserved for full-screen
+  popups (discovery, Tilepedia).
+Reason: One card with identical fields directly expresses Decision 050. The
+adjacent-combat preview turns full transparency into instant, learnable
+decision support — a player reads an attack in ~2 seconds. Read-only opponent
+mode prevents any implication of controlling another player's units.
+Security: neutral; opponent data is already on the wire (Decision 049) and
+shown by design — no new exposure.
