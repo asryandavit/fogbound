@@ -683,3 +683,65 @@ decision support — a player reads an attack in ~2 seconds. Read-only opponent
 mode prevents any implication of controlling another player's units.
 Security: neutral; opponent data is already on the wire (Decision 049) and
 shown by design — no new exposure.
+
+## 056 — Pre-match flow & base placement
+
+Decision: Pre-match is a four-step spine — Choose match → Lobby → Base
+placement → Match — with two entry lanes into it.
+- Entry lanes: Quick play (sensible defaults, into matchmaking) and Custom
+  (a host sets options and invites; invitees may Join by code).
+- Match options are map-size-driven:
+  - Small (7×7, 9×9): 1 explorer each, 2 players.
+  - Medium (11×11, 13×13): 2 explorers each, 2–3 players.
+  - Large (15×15, 17×17): 3 explorers each, 2–4 players.
+  Theme rides on top (water = ship base, land = vehicle base) and the board
+  layout is randomized each match (Jackal-style).
+- Base placement (v1): SEQUENTIAL with live reveal. Players place in turn
+  order; each placement is visible to all as it locks, so later players can
+  react. A player slides their base along their own side (starting
+  row/column) and locks it.
+- Per-pick timer: configurable by (game type × board size), stored
+  server-side / in the DB — not a single global value. Baseline ~10s,
+  tuned per cell after playtest.
+- Timeout behavior (v1, until the AI bot exists): a player who does not
+  place in time simply misses it — no bot places for them. A player who
+  missed placement receives a DEFAULT SPAWN at the centre of their own side
+  at match start (so a missing base never blocks the match).
+- Simultaneous placement (all place at once, blind, revealed together) is
+  PARKED as a separate future game type. The pre-match flow already has a
+  home for it: "placement mode" becomes a Custom-setup option, defaulting to
+  sequential. The seam is intentional.
+- Upgrade path: once the server-side AI bot exists (Decisions 003/011,
+  weeks 12–16 roadmap), it supersedes the v1 timeout behavior — the bot
+  makes placement decisions (and idle in-match moves) using board state,
+  revealed tiles, and prior moves, consistent with disconnect takeover.
+Reason: Sequential live placement gives the strategic "react to opponents"
+feel the players asked for. A DB-driven timer matrix lets pacing be tuned
+per format without code changes. Miss-your-turn-on-timeout is the smallest
+v1 rule that never stalls a match and needs no bot. Parking simultaneous as
+a game type ships one mode now without blocking on the other.
+Security: timer config is server-authoritative; placement is a validated
+server request (Decision 039).
+
+## 057 — Anti-camping: only delivered treasure scores
+
+Decision: Treasure scores ONLY when an explorer carries it back to its base.
+Treasure held in the field at match end does not count. This is the
+deliberate answer to the "grab treasure then sit idle to protect a lead"
+exploit:
+- Sitting idle protects nothing. An idle player's explorers remain on the
+  board and fully attackable. Per Combat rules, an explorer that loses combat
+  drops ALL carried treasure onto the board and returns to base — so a
+  camped, loaded explorer is just an exposed target, not a locked lead.
+- A missed turn does nothing on its own (Decision 056) — which is safe,
+  because the rules above make stalling a slow way to lose a hoard, not a way
+  to shield it. No point decay and no player ejection are needed in v1.
+- Disconnects are handled separately by the reconnection/bot rules (no
+  penalty); this anti-camp behavior applies to connected-but-idle play only.
+- Known non-issue: a player who DELIVERS treasure early and then goes idle
+  cannot be pressured — but they have already scored by delivering, which is
+  exactly the intended behavior. This is not camping and needs no rule.
+Reason: The exploit dies as a natural consequence of existing rules
+(delivery-to-score + combat-drop) rather than a bolted-on punishment system.
+Simplest fair solution; avoids penalizing honest disconnects.
+Security: scoring is server-side only (Decision 039); clients cannot self-award.
