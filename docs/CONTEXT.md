@@ -132,3 +132,19 @@ fogbound/
 - ignoreDeprecations 6.0 not supported in TS 5.9 → removed
 - baseUrl deprecated → removed from tsconfig
 - Missing dto folders → always mkdir -p before touch
+
+## Glossary
+
+- **User** — the real human playing the game. (Not their in-game pieces.)
+- **Player** — a participant slot in a match (human or bot), with a side, a
+  base, a color, and a score. One user controls one player per match.
+- **Explorer** — a movable figure a player controls on the board (1–3 per
+  player by map size). The piece that moves tile-to-tile.
+- **Board** — the square grid of tiles a match is played on; size varies
+  (7×7 to 17×17).
+- **Tile** — one cell of the board. Has terrain and possibly content; starts
+  hidden under fog.
+- **Base** — a player's home position on their own edge (ship on water maps,
+  vehicle on land); explorers spawn from it and treasure is scored there.
+- **Fog** — hidden tiles; revealed permanently when an explorer steps onto
+  them (shared across all players).
