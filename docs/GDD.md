@@ -96,11 +96,19 @@
 
 ### Starting Positions
 
-- Players start on one side of the map
-- At game start, each player chooses base position on their own side only
-- Entire starting row/column is revealed at start
-- No treasure on starting row/column tiles
-- Explorers spawn at the chosen base position
+- Players start on one side of the map (see Player Side Assignment).
+- Before the match, each player chooses their base position along their own
+  side. Placement is sequential with live reveal — players place in turn
+  order and each placement is visible to all as it locks, so later players
+  can react (Decision 056).
+- Per-pick timer is configurable by game type and board size (stored in DB),
+  baseline ~10s. If a player does not place in time, they miss placement and
+  receive a default spawn at the centre of their side at match start.
+- The entire starting row/column is revealed at start; no treasure sits on
+  starting row/column tiles.
+- Explorers spawn at the chosen (or default) base position.
+- Simultaneous placement (all at once, revealed together) is a parked future
+  game type, selectable in Custom setup once built (Decision 056).
 
 ### Player Side Assignment
 
@@ -181,8 +189,14 @@ Base appearance depends on map theme:
 
 ## Scoring
 
-- Treasure **must** be carried back to base to score points
-- Player with the most points wins
+- Treasure scores ONLY when an explorer carries it back to its base.
+  Treasure held in the field at match end does not count (Decision 057).
+- The player with the most delivered treasure (points) wins.
+- Anti-camping: because only delivered treasure scores and idle explorers
+  remain attackable, sitting still to protect a lead does not work — a
+  camped, loaded explorer is an exposed target. An explorer that loses combat
+  drops all carried treasure onto the board and returns to base (see Combat).
+  A missed turn therefore does nothing on its own and needs no extra penalty.
 
 ---
 
