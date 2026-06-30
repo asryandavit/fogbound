@@ -35,6 +35,13 @@ code, ARCHITECTURE.md, GODOT_CLIENT.md, or AGENT.md (build-thread files).
   (GDD "Visual Identity"); zoom-to-detail (GDD "Camera Behavior")
 - ☑ Explorer inspection — full-transparency card, own vs opponent, with
   adjacent-combat preview (DECISIONS 055; GDD "UX Patterns")
+- ☑ Pre-match flow — quick/custom lanes, map-size-driven options, four-step
+  spine (DECISIONS 056; GDD "Players and Bases")
+- ☑ Base placement — sequential, live reveal, DB-configurable per-pick timer,
+  miss-your-turn on timeout, default spawn for missed placement; simultaneous
+  parked as a future game type (DECISIONS 056)
+- ☑ Anti-camping — only delivered treasure scores; idle explorers stay
+  attackable (DECISIONS 057; GDD "Scoring")
 
 ---
 
@@ -55,7 +62,7 @@ Mini-card contents when tapping own vs. opponent explorer — cashes out the
 full-transparency rule (DECISIONS 050): position, coins, gems, bag, Shield.
 Feeds GC4 (explorers) + GC6.
 
-### 4. ☐ Pre-match flow
+### 4. ☑ Pre-match flow
 Match setup (map size, player count, timer — DECISIONS 030) → base placement
 (DECISIONS 018, currently undesigned) → match start.
 
@@ -72,6 +79,12 @@ First-run experience; severity-tiered discovery popups + Tilepedia
 
 ### 8. ☑ Tablet landscape layout — folded into Decision 051
 Adapt the persistent left panel from DECISIONS 031 for tablet.
+
+### Open flags (build / mechanics thread)
+- Per-pick placement timer values per (game type × board size) — tune after
+  playtest (Decision 056).
+- AI bot to handle placement + idle in-match moves — supersedes v1
+  miss-your-turn behavior once built (Decisions 003/011/056).
 
 ---
 
