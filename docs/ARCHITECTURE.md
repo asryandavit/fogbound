@@ -97,6 +97,7 @@ behind `network_manager.gd` — SDK-specific workarounds never leak to view code
 | `on_change` does not cascade to nested schemas | Confirmed | Attach nested `listen()` calls inside the `on_add` callback (Decision 044) |
 | `on_change(state, "field", func(val,key))` crashes on root REF fields | Confirmed (Decision 060) | Use `listen(state, "field", func(new,old))` instead — never the field-keyed on_change() overload on a root-level Schema REF field |
 | Generic `on_change(state, callback)` invokes callback with zero args | Confirmed (Decision 060) | Callback must be `func() -> void`, not `func(_changes)` |
+| `GameState.state_initialized` can fire before collections are populated | Confirmed (Decision 061) | Never cache a value derived from a collection (e.g. board row count) gated on `is_initialized` — recompute fresh from current data on every relevant event instead |
 | Schema instances may arrive as Dictionary when `set_state_type()` not called | Confirmed | state_mapper.gd handles both; spike confirmed Dictionary decode works for all 169 tiles |
 | GDScript inner-class limit: cannot `extends Colyseus.Schema` in a standalone file | Confirmed | Define GDScript schema classes as inner classes within a single schema_defs.gd file |
 | Callbacks dispatched off the WebSocket thread | Beta risk | In headless/GUT tests, call `Colyseus.poll()` manually once per frame; auto-polling is active in editor/device via the SDK's internal _Poller node |

@@ -118,25 +118,50 @@ Not in this task's scope: wiring BoardLayer/FogLayer into the full Match scene t
 explorers (GC4) and camera (GC7) exist too.
 Human approval gate required before GC4.
 
-### GC4 — Explorer Renderer
-Files: godot/scenes/match/explorers/Explorer.tscn, ExplorerController.gd
+### GC4 — Explorer Renderer ✅ DONE (2026-07-04)
+Files: godot/scenes/match/explorers/Explorer.tscn, ExplorerController.gd,
+       Explorers.tscn, explorers_container.gd
 Spec: docs/superpowers/specs/2026-07-03-first-playable-sprint-design.md
 
-- Sprite2D + Label (player name / explorer index)
+- Sprite2D (procedural flat-color square) + Label (explorerId) + BotBadge Label
+- Explorers.tscn/explorers_container.gd (added — not in the originally-listed
+  files, but required by Decision 047's Match Scene Tree: something has to listen
+  to GameState and spawn/despawn Explorer.tscn instances as children; nothing
+  else in the codebase does this)
 - Listens to GameState.explorer_added, explorer_moved, explorer_removed signals
-- Smooth lerp movement: target_coord updated on explorer_moved; tween to world position
-- Bot badge: gray Label/icon visible when explorer isBot == true (Decision 029)
-- Auto-spawn base at centre of player's side (Decision 058 + Decision 056 fallback)
+- Smooth movement: target_coord (raw server x,y) updated on explorer_moved;
+  create_tween().tween_property(...) to BoardCoord.to_world_position(), 0.2s
+- Bot badge: BotBadge Label visible when explorer isBot == true (Decision 029)
+- Auto-spawn base at centre of player's side: this describes existing SERVER
+  behavior (GameRoom.ts spawnExplorers), not a client action item — no code
+  needed here, context only
+- board_coord.gd extended: TILE_PX + flip_row() + to_world_position(), shared by
+  BoardLayer/FogLayer/ExplorerController so the y-flip has one implementation
 - Pure renderer — no game logic
 
-GUT file: godot/tests/gc4/test_explorer_renderer.gd
-- test_explorer_spawns_on_added      — emit explorer_added("e1") → $Explorers.get_child_count() == 1
-- test_explorer_position_on_moved    — emit explorer_moved("e1", 2, 3) →
-                                        Explorer node's target_coord == Vector2i(2, 3)
-- test_bot_badge_visible_when_bot    — Explorer with isBot=true → $BotBadge.visible == true
-- test_bot_badge_hidden_when_human   — Explorer with isBot=false → $BotBadge.visible == false
+Found + fixed a second empirical ordering bug — see Decision 061:
+GameState.state_initialized fired while GameState.tiles.size() was still 0
+(before tiles arrived), so caching board_rows once is_initialized became true
+froze it at a wrong value computed from an empty tile set. Every explorer
+spawned at an incorrectly flipped y position (confirmed live: y showed 0
+instead of the correct 384 for a 13-row board). Fixed by removing the cache —
+explorers_container.gd now recomputes board_rows fresh from GameState.tiles on
+every explorer_added/explorer_moved (cheap: one scan, ≤289 tiles max map size).
 
-Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit → 0 failures, 0 errors.
+GUT file: godot/tests/gc4/test_explorer_renderer.gd
+- test_explorer_spawns_on_added      — GameState.set_explorer("e1", {...}) →
+                                        Explorers container child count == 1
+- test_explorer_position_on_moved    — GameState.set_explorer("e1", {x:2,y:3,...}) →
+                                        spawned ExplorerController's target_coord == Vector2i(2, 3)
+- test_bot_badge_visible_when_bot    — Explorer.setup(id, {isBot:true,...}, rows) →
+                                        explorer.bot_badge.visible == true
+- test_bot_badge_hidden_when_human   — Explorer.setup(id, {isBot:false,...}, rows) →
+                                        explorer.bot_badge.visible == false
+
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit → 4/4 passed, 0 failures, 0 errors.
+Also reconfirmed gc2 (5/5) and gc3 (3/3) — no regressions from the board_coord.gd refactor.
+Verified live against fogbound_backend: 4-6 explorers spawned matching GameState.explorers
+count exactly, correctly-flipped world positions confirmed after the Decision 061 fix.
 Human approval gate required before GC5.
 
 ### GC5 — Input Handling

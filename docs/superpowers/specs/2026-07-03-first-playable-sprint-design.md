@@ -75,15 +75,24 @@ Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit`
 
 ## GC4 — Explorer Renderer
 
-Files: `godot/scenes/match/explorers/Explorer.tscn`, `ExplorerController.gd`
+Files: `godot/scenes/match/explorers/Explorer.tscn`, `ExplorerController.gd`,
+`Explorers.tscn`, `explorers_container.gd` (container added — required by
+Decision 047's Match Scene Tree; nothing else spawns Explorer instances)
 GUT: `godot/tests/gc4/test_explorer_renderer.gd`
+
+Correction found during implementation: `GameState.state_initialized` does not
+reliably fire after `GameState.tiles` is populated (see Decision 061) — a
+consumer must never cache a tiles-derived value (e.g. board row count) gated
+on `is_initialized`; recompute fresh from current data every time instead.
 
 | Test | Assertion |
 |---|---|
-| `test_explorer_spawns_on_added` | Emit `explorer_added("e1")` → `$Explorers.get_child_count() == 1` |
-| `test_explorer_position_on_moved` | Emit `explorer_moved("e1", 2, 3)` → Explorer node's `target_coord == Vector2i(2, 3)` |
-| `test_bot_badge_visible_when_bot` | Explorer with `isBot=true` → `$BotBadge.visible == true` |
-| `test_bot_badge_hidden_when_human` | Explorer with `isBot=false` → `$BotBadge.visible == false` |
+| `test_explorer_spawns_on_added` | `GameState.set_explorer("e1", {...})` → Explorers container child count == 1 |
+| `test_explorer_position_on_moved` | `GameState.set_explorer("e1", {x:2,y:3,...})` → spawned Explorer node's `target_coord == Vector2i(2, 3)` |
+| `test_bot_badge_visible_when_bot` | `Explorer.setup(id, {isBot:true,...}, rows)` → `explorer.bot_badge.visible == true` |
+| `test_bot_badge_hidden_when_human` | `Explorer.setup(id, {isBot:false,...}, rows)` → `explorer.bot_badge.visible == false` |
+
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit` → 0 failures, 0 errors.
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit` → 0 failures, 0 errors.
 

@@ -2,7 +2,6 @@ class_name FogLayer extends TileMapLayer
 # Pure renderer — fog is derived entirely from tile.isRevealed (Decision 047).
 # Never computed client-side. Gray-box: one flat-color swatch, no art files.
 
-const TILE_PX := 32
 const FOG_COLOR := Color(0.08, 0.08, 0.10)
 
 var _board_rows: int = 0
@@ -13,17 +12,18 @@ func _ready() -> void:
     GameState.tile_changed.connect(_on_tile_changed)
 
 func _build_tileset() -> void:
-    var image := Image.create_empty(TILE_PX, TILE_PX, false, Image.FORMAT_RGBA8)
+    var px := BoardCoord.TILE_PX
+    var image := Image.create_empty(px, px, false, Image.FORMAT_RGBA8)
     image.fill(FOG_COLOR)
     var texture := ImageTexture.create_from_image(image)
 
     var atlas := TileSetAtlasSource.new()
     atlas.texture = texture
-    atlas.texture_region_size = Vector2i(TILE_PX, TILE_PX)
+    atlas.texture_region_size = Vector2i(px, px)
     atlas.create_tile(Vector2i(0, 0))
 
     var ts := TileSet.new()
-    ts.tile_size = Vector2i(TILE_PX, TILE_PX)
+    ts.tile_size = Vector2i(px, px)
     ts.add_source(atlas, 0)
     tile_set = ts
 

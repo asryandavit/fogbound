@@ -3,7 +3,6 @@ class_name BoardLayer extends TileMapLayer
 # (Decision 008/047). Gray-box: swatches are procedurally generated flat
 # colors, no art files (Decision 058).
 
-const TILE_PX := 32
 # Atlas layout: terrain kinds first, then treasure overlays.
 const TERRAIN_TYPES := ["grass", "water"]
 const TREASURE_TYPES := ["coin", "shield", "sword"]
@@ -23,20 +22,21 @@ func _ready() -> void:
     GameState.tile_changed.connect(_on_tile_changed)
 
 func _build_tileset() -> void:
+    var px := BoardCoord.TILE_PX
     var count := SWATCH_COLORS.size()
-    var image := Image.create_empty(TILE_PX * count, TILE_PX, false, Image.FORMAT_RGBA8)
+    var image := Image.create_empty(px * count, px, false, Image.FORMAT_RGBA8)
     for i in count:
-        image.fill_rect(Rect2i(i * TILE_PX, 0, TILE_PX, TILE_PX), SWATCH_COLORS[i])
+        image.fill_rect(Rect2i(i * px, 0, px, px), SWATCH_COLORS[i])
     var texture := ImageTexture.create_from_image(image)
 
     var atlas := TileSetAtlasSource.new()
     atlas.texture = texture
-    atlas.texture_region_size = Vector2i(TILE_PX, TILE_PX)
+    atlas.texture_region_size = Vector2i(px, px)
     for i in count:
         atlas.create_tile(Vector2i(i, 0))
 
     var ts := TileSet.new()
-    ts.tile_size = Vector2i(TILE_PX, TILE_PX)
+    ts.tile_size = Vector2i(px, px)
     ts.add_source(atlas, 0)
     tile_set = ts
 

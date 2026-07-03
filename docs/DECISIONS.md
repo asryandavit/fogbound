@@ -836,3 +836,37 @@ docs/GODOT_CLIENT.md has been updated to show the corrected pattern.
 Security: neutral — this is a stability/correctness fix in the network layer,
 not a data-exposure change. No new information is read or sent; the same
 turnState data now reaches GameState via a different, non-crashing SDK call.
+
+## 061 — GameState.state_initialized does not reliably fire after collections
+
+Decision: Never treat `GameState.state_initialized` (or `GameState.is_initialized`)
+as a "tiles/explorers/players are now fully populated" signal. Any consumer
+that derives a value from `GameState.tiles` (or another collection) must
+recompute that value fresh from current data on every relevant event, not
+cache it once and trust `is_initialized` to know when it's safe to stop
+recomputing.
+Reason: Empirically confirmed during GC4 live-backend testing. Debug tracing
+showed `GameState.state_initialized` fired while `GameState.tiles.size()` was
+still 0 — before any tiles arrived — then `explorer_added` fired afterward
+with `GameState.tiles.size() == 169` and `GameState.is_initialized == true`.
+Colyseus processes collections in the same patch in an order independent of
+Callbacks registration order (Decision 060 already found related ordering
+surprises); the generic root `on_change(state, func())` used to trigger
+`finalize_initialization()` (Decision 060) fires on an early/empty
+notification, not after every collection is guaranteed complete. This first
+surfaced as a real bug in `explorers_container.gd`: caching `board_rows` once
+`is_initialized` became true froze it at an early wrong value (computed from
+0 tiles) instead of recomputing from the now-complete 169-tile set, so every
+explorer spawned at an incorrectly flipped y position (confirmed via a live
+Colyseus session: y showed as 0 instead of the correct flipped row 12).
+Fixed by removing the cache entirely — `explorers_container.gd` now calls
+`BoardCoord.compute_board_rows(GameState.tiles)` fresh on every
+`explorer_added`/`explorer_moved`, which is cheap (a single dictionary scan,
+≤289 tiles for the largest map size) and immune to this ordering issue.
+Security: neutral — stability/correctness fix, no data exposure change.
+Future work: docs/ARCHITECTURE.md's Decision 048 signal table describes
+`state_initialized` as firing "after first full state received" — that
+description is the intent, not the confirmed behavior of the current
+network_manager.gd wiring. Revisit if a real "all collections populated"
+signal is needed later (e.g. a loading spinner) — it would need to be
+derived differently, not from this signal as-is.
