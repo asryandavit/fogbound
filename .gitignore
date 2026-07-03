@@ -35,3 +35,6 @@ claude/
 # Environment files
 docker/.env
 backend/.env
+
+# Verification artifacts (local only)
+test-artifacts/
