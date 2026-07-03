@@ -18,10 +18,11 @@ config/features=PackedStringArray("4.6", "Mobile")
 
 Config="*res://autoloads/config.gd"
 NetworkManager="*res://autoloads/network_manager.gd"
+GameState="*res://autoloads/game_state.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/colyseus/plugin.gd")
+enabled=PackedStringArray("res://addons/colyseus/plugin.gd", "res://addons/gut/gut_plugin.gd")
 
 [rendering]
 

@@ -47,7 +47,7 @@ GUT: `godot/tests/gc2/test_state_store.gd`
 | `test_apply_turn_change` | `apply_turn_change({currentPlayerId:"p1",turnNumber:1,...})` → `GameState.current_player_id == "p1"`; `turn_changed` emits |
 | `test_finalize_initialization` | `finalize_initialization()` → `state_initialized` emits once; `GameState.is_initialized == true` |
 
-Done: `godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc2 -gexit` → 0 failures, 0 errors.
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc2 -gexit` → 0 failures, 0 errors.
 
 ## GC3 — Board Renderer
 
@@ -60,7 +60,7 @@ GUT: `godot/tests/gc3/test_board_renderer.gd`
 | `test_fog_cell_cleared_on_reveal` | Emit `tile_changed` with `isRevealed=true` → `FogLayer.get_cell_source_id(0, coord) == TileMap.INVALID_CELL` |
 | `test_fog_cell_present_on_hidden` | Emit `tile_changed` with `isRevealed=false` → FogLayer cell at coord is a valid tile id |
 
-Done: `godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit` → 0 failures, 0 errors.
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit` → 0 failures, 0 errors.
 
 ## GC4 — Explorer Renderer
 
@@ -74,7 +74,7 @@ GUT: `godot/tests/gc4/test_explorer_renderer.gd`
 | `test_bot_badge_visible_when_bot` | Explorer with `isBot=true` → `$BotBadge.visible == true` |
 | `test_bot_badge_hidden_when_human` | Explorer with `isBot=false` → `$BotBadge.visible == false` |
 
-Done: `godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit` → 0 failures, 0 errors.
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit` → 0 failures, 0 errors.
 
 ## GC5 — Input
 
@@ -88,7 +88,7 @@ Mock: `MockNetworkManager` — records `send_move` calls, never mutates GameStat
 | `test_select_then_confirm_sends_move` | Tap explorer at (1,1) → tap valid target (1,2) → `mock_net.last_send == {explorer_id, x:1, y:2}` |
 | `test_game_state_unchanged_after_tap` | Any tap sequence → `GameState.tiles` and `.explorers` references unchanged |
 
-Done: `godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit` → 0 failures, 0 errors.
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit` → 0 failures, 0 errors.
 
 ## GC6 — Minimal HUD
 
@@ -104,7 +104,7 @@ GUT: `godot/tests/gc6/test_hud.gd`
 | `test_undo_hidden_initially` | Init → `$UndoButton.visible == false` |
 | `test_undo_appears_after_send_move` | `NetworkManager.move_sent` emits → `$UndoButton.visible == true` |
 
-Done: `godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit` → 0 failures, 0 errors.
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit` → 0 failures, 0 errors.
 
 ## GC7 — Camera Rig
 
@@ -118,7 +118,7 @@ GUT: `godot/tests/gc7/test_camera_controller.gd`
 | `test_zoom_clamped_at_min` | Simulate pinch beyond min → `camera.zoom.x >= min_zoom` |
 | `test_zoom_clamped_at_max` | Simulate pinch beyond max → `camera.zoom.x <= max_zoom` |
 
-Done: `godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc7 -gexit` → 0 failures, 0 errors.
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc7 -gexit` → 0 failures, 0 errors.
 
 ## Human approval gates
 

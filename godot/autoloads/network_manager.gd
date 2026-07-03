@@ -154,13 +154,15 @@ func _setup_state_callbacks() -> void:
 	print("[NetworkManager] initial state type=%s" % type_string(typeof(state)))
 	_log_state_counts(state)
 
-	# Colyseus.Callbacks.of(room): confirmed working with 0.17.11 (GC1 empirical test).
+	# Colyseus.Callbacks.of(room): confirmed working with 0.17.11 (GC1+GC2 empirical tests).
 	# CONFIRMED signatures (see docs/GODOT_CLIENT.md for full notes):
 	#   on_add(state, "collection_key", func(item: Dictionary, key: String))
 	#   on_remove(state, "collection_key", func(item: Dictionary, key: String))
 	#   listen(item, "field_name", func(new_val, old_val))
-	#   on_change(state, func(changes)) or on_change(state, "field", func(val, key))
+	#   on_change(state, func() -> void: ...)  — zero args
 	# INVALID: on_add(room, callback) — room is not a valid target; use state dict.
+	# BROKEN (crashes native ext, Decision 060): on_change(state, "field", func(val, key))
+	#   on a root-level Schema REF field — use listen(state, "field", ...) instead.
 	# NOTE: state is empty at registration time; callbacks fire on the first server patch.
 	# NOTE: on_add back-fills existing items when the first patch arrives.
 	_callbacks = Colyseus.Callbacks.of(_room)
@@ -168,13 +170,55 @@ func _setup_state_callbacks() -> void:
 		print("[NetworkManager] Callbacks.of() returned null — state_changed signal is fallback")
 		return
 
-	# GC1: minimal proof callback — logs explorer additions.
-	# GC2 will replace this with state_mapper routing.
-	var _h: int = _callbacks.on_add(state, "explorers", func(item, key):
-		# SECURITY: log key (explorer ID, already public in room) and count only
-		print("[NetworkManager][cb] explorer added key=%s type=%s" % [
-			str(key), type_string(typeof(item))
-		])
+	# GC2: route every callback through StateMapper — this file is the only one
+	# allowed to touch Colyseus.* (Decision 043); StateMapper never imports it.
+	#
+	# EMPIRICAL CORRECTIONS vs docs/GODOT_CLIENT.md (found during GC2 live testing,
+	# SDK 0.17.11 — see docs/DECISIONS.md entry 060):
+	#   - on_change(state, "field_name", func(val, key)) CRASHES the native
+	#     extension (misaligned-pointer panic in GodotCallbackEntry) when used on
+	#     a root-level Schema REF field (e.g. turnState). Use listen(state,
+	#     "field_name", func(new_val, old_val)) instead — same result, no crash.
+	#   - on_change(state, func(...)) (the generic, no-key form) invokes its
+	#     callback with ZERO arguments, not one. func(_changes) errors with
+	#     "Method expected 1 argument(s), but called with 0."
+
+	# Tiles: on_add back-fills existing tiles first, then fires for new additions.
+	# Nested listen() is attached inside on_add — on_change does not cascade to
+	# nested schema properties (Decision 044).
+	_callbacks.on_add(state, "tiles", func(tile, coord_key: String) -> void:
+		_callbacks.listen(tile, "isRevealed", func(_new_val, _old_val) -> void:
+			StateMapper.apply_tile_change(coord_key, tile)
+		)
+		StateMapper.apply_tile_change(coord_key, tile)
+	)
+
+	# Explorers
+	_callbacks.on_add(state, "explorers", func(explorer, id: String) -> void:
+		_callbacks.listen(explorer, "x", func(_n, _o) -> void: StateMapper.apply_explorer_change(id, explorer))
+		_callbacks.listen(explorer, "y", func(_n, _o) -> void: StateMapper.apply_explorer_change(id, explorer))
+		StateMapper.apply_explorer_change(id, explorer)
+	)
+	_callbacks.on_remove(state, "explorers", func(_explorer, id: String) -> void:
+		StateMapper.remove_explorer(id)
+	)
+
+	# Players
+	_callbacks.on_add(state, "players", func(player, id: String) -> void:
+		StateMapper.apply_player_change(id, player)
+	)
+
+	# Turn state (nested REF schema on root). listen(), not on_change("turnState", ...) —
+	# see EMPIRICAL CORRECTIONS above.
+	_callbacks.listen(state, "turnState", func(turn_state, _old_val) -> void:
+		StateMapper.apply_turn_change(turn_state)
+	)
+
+	# Signal GameState that initial hydration is complete. Zero-arg callback —
+	# see EMPIRICAL CORRECTIONS above.
+	_callbacks.on_change(state, func() -> void:
+		if not GameState.is_initialized:
+			StateMapper.finalize_initialization()
 	)
 
 # ─── Private: helpers ─────────────────────────────────────────────────────────

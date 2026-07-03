@@ -806,3 +806,33 @@ GUT 9.6.0 is bitwes/Gut's release specifically targeting Godot 4.6.x
 compatibility (confirmed via the project's GitHub releases), matching this
 project's pinned Godot 4.6.3 (Decision 035).
 Security: neutral — dev/test-only tooling, never shipped in a production build.
+
+## 060 — Colyseus SDK bug found: field-keyed on_change() crashes on root REF fields
+
+Decision: Never call `Colyseus.Callbacks.on_change(state, "field_name", callback)`
+on a root-level Schema REF field (e.g. turnState). Use
+`Colyseus.Callbacks.listen(state, "field_name", func(new_val, old_val))` instead —
+confirmed to produce the same behavior with no crash. Also: the generic,
+no-key form `on_change(state, callback)` invokes its callback with ZERO
+arguments, not one — `func(_changes)` throws "Method expected 1 argument(s),
+but called with 0"; use `func() -> void: ...`.
+Reason: Empirically confirmed during GC2 live-backend testing (desktop Godot
+client against the running fogbound_backend container). Registering
+`on_change(state, "turnState", func(val, key))` reliably crashes the native
+Colyseus GDExtension (0.17.11) with a Rust/Zig panic — "member access within
+misaligned address 0xffffffffffffffff for type 'GodotCallbackEntry'" — inside
+`_collection_change_trampoline`, as soon as the server sends its first state
+patch. Bisected by incrementally re-adding each callback registration
+(tiles on_add+listen, explorers on_add+listen+on_remove, players on_add, then
+turnState on_change) until the crash reproduced in isolation — confirmed the
+3-arg field-keyed `on_change` overload is the sole trigger, independent of any
+other registrations. The trampoline name suggests the native extension routes
+field-keyed `on_change` through the same code path as MapSchema/ArraySchema
+collection changes, which is a type mismatch for a scalar Schema REF field.
+This corrects the pattern documented in docs/GODOT_CLIENT.md's "State Callback
+Consumption Pattern" section (written before this was empirically tested — that
+section flagged `on_change` signatures as untested and asked GC2 to verify them).
+docs/GODOT_CLIENT.md has been updated to show the corrected pattern.
+Security: neutral — this is a stability/correctness fix in the network layer,
+not a data-exposure change. No new information is read or sent; the same
+turnState data now reaches GameState via a different, non-crashing SDK call.

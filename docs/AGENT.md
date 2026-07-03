@@ -40,7 +40,7 @@ Done: bash scripts/verify.sh exits 0; test-artifacts/latest/ contains all 3 file
 
 ---
 
-### GC2 — State Store
+### GC2 — State Store ✅ DONE (2026-07-04)
 Files: godot/autoloads/game_state.gd, godot/scripts/network/state_mapper.gd
 Spec: docs/superpowers/specs/2026-07-03-first-playable-sprint-design.md
 
@@ -64,7 +64,16 @@ GUT file: godot/tests/gc2/test_state_store.gd
 - test_finalize_initialization         — finalize_initialization() → state_initialized emits once;
                                          GameState.is_initialized == true
 
-Done: godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc2 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc2 -gexit → 5/5 passed, 0 failures, 0 errors.
+Also verified live against fogbound_backend (desktop Godot run, Main.tscn temporarily
+scripted then reverted): joined room, 169 tiles + explorers + players + turnState all
+synced into GameState, is_initialized became true, zero crashes/errors.
+Found + fixed a real Colyseus SDK bug along the way — see Decision 060: the field-keyed
+on_change(state, "field", callback) crashes the native extension on root REF fields
+(e.g. turnState); switched to listen(state, "field", callback) instead. Also corrected
+the generic on_change(state, callback) to a zero-arg signature (was documented as 1-arg).
+GUT 9.6.0 test framework vendored as a prerequisite (Decision 059) — needed by every
+task GC2-GC7's done-criterion, none of which had it available before this task.
 Human approval gate required before GC3.
 
 ### GC3 — Board Renderer
@@ -85,7 +94,7 @@ GUT file: godot/tests/gc3/test_board_renderer.gd
 - test_fog_cell_present_on_hidden          — emit tile_changed with isRevealed=false →
                                              FogLayer cell at coord is a valid tile id
 
-Done: godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit → 0 failures, 0 errors.
 Human approval gate required before GC4.
 
 ### GC4 — Explorer Renderer
@@ -106,7 +115,7 @@ GUT file: godot/tests/gc4/test_explorer_renderer.gd
 - test_bot_badge_visible_when_bot    — Explorer with isBot=true → $BotBadge.visible == true
 - test_bot_badge_hidden_when_human   — Explorer with isBot=false → $BotBadge.visible == false
 
-Done: godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit → 0 failures, 0 errors.
 Human approval gate required before GC5.
 
 ### GC5 — Input Handling
@@ -127,7 +136,7 @@ Uses MockNetworkManager: records send_move calls, never mutates GameState.
                                           mock_net.last_send == {explorer_id, x:1, y:2}
 - test_game_state_unchanged_after_tap   — any tap sequence → GameState.tiles/.explorers unchanged
 
-Done: godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit → 0 failures, 0 errors.
 Human approval gate required before GC6.
 
 ### GC6 — Minimal HUD
@@ -151,7 +160,7 @@ GUT file: godot/tests/gc6/test_hud.gd
 - test_undo_hidden_initially          — init → $UndoButton.visible == false
 - test_undo_appears_after_send_move   — NetworkManager.move_sent emits → $UndoButton.visible == true
 
-Done: godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit → 0 failures, 0 errors.
 Human approval gate required before GC7.
 
 ### GC7 — Camera Rig
@@ -173,7 +182,7 @@ GUT file: godot/tests/gc7/test_camera_controller.gd
 - test_zoom_clamped_at_max             — pinch delta that would go above max_zoom →
                                           camera.zoom.x <= max_zoom
 
-Done: godot4 --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc7 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc7 -gexit → 0 failures, 0 errors.
 Human approval gate required — Playable Milestone reached on pass.
 
 ---

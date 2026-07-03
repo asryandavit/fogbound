@@ -204,29 +204,36 @@ func _setup_callbacks(room) -> void:
         state_mapper.remove_explorer(id)
     )
 
-    # Turn state (nested schema on root — attach on_change at root level)
-    cb.on_change(state, "turnState", func(turn_state, _key) -> void:
+    # Turn state (nested REF schema on root). listen(), NOT on_change("turnState", ...) —
+    # the field-keyed on_change() overload crashes the native extension on a root
+    # REF field (confirmed in GC2, see Decision 060). listen() is the safe equivalent.
+    cb.listen(state, "turnState", func(turn_state, _old_val) -> void:
         state_mapper.apply_turn_change(turn_state)
     )
 
-    # Signal game_state that initial hydration is complete
-    cb.on_change(state, func(_changes) -> void:
+    # Signal game_state that initial hydration is complete.
+    # NOTE: the generic on_change(state, callback) form invokes its callback with
+    # ZERO arguments, not one — func(_changes) throws at runtime (Decision 060).
+    cb.on_change(state, func() -> void:
         if not GameState.initialized:
             state_mapper.finalize_initialization()
     )
 ```
 
-**Confirmed API (GC1 empirical test, SDK 0.17.11):**
+**Confirmed API (GC1 + GC2 empirical tests, SDK 0.17.11):**
 - `Colyseus.Callbacks.of(room)` — CONFIRMED working; returns a Callbacks object
 - `on_add(state, "collection_key", func(item, key))` — CONFIRMED 3-arg form
 - `on_add(room, callback)` — INVALID; room is not a valid target
 - State is empty right after `joined`; `on_add` back-fills existing items on first server patch
-
-**Not yet empirically tested (expected from SDK docs, test in GC2):**
-- `on_remove(state, "collection_key", func(item, key))`
-- `listen(item, "field_name", func(new_val, old_val))`
-- `on_change(state, func(changes))` and `on_change(state, "field", func(val, key))`
-- Return value of `on_add`/`listen` is int handle — use `cb.remove(handle)` on cleanup
+- `on_remove(state, "collection_key", func(item, key))` — CONFIRMED (GC2), no issues
+- `listen(item, "field_name", func(new_val, old_val))` — CONFIRMED (GC2), safe on both
+  collection-item schemas (tile, explorer) AND root-level REF fields (turnState)
+- `on_change(state, func())` — CONFIRMED (GC2) — **zero-argument** callback, not one.
+  `func(_changes)` throws "Method expected 1 argument(s), but called with 0" at runtime.
+- `on_change(state, "field_name", func(val, key))` — **CONFIRMED BROKEN** (GC2): crashes
+  the native extension with a misaligned-pointer panic when used on a root-level Schema
+  REF field (e.g. turnState) — see Decision 060. Use `listen(state, "field_name", ...)`
+  instead; same effective behavior, does not crash.
 
 **Critical callback rules:**
 - `on_add` back-fills existing items — treat it as "initial + future additions combined"
