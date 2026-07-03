@@ -21,12 +21,13 @@ fi
 echo "Device : $DEVICE"
 
 # --- logcat (30 s, Godot tag only) ---
+# No 'timeout' binary on stock macOS (GNU coreutils only) — background + sleep + kill instead.
 echo "Capturing logcat for 30 s..."
-timeout 30 adb -s "$DEVICE" logcat -s Godot > "$OUTDIR/logcat.txt" 2>&1 || {
-  code=$?
-  # exit 124 = timeout expired (expected); anything else is a real adb error
-  [[ $code -eq 124 ]] || { echo "ERROR: adb logcat failed (exit $code)"; exit 1; }
-}
+adb -s "$DEVICE" logcat -s Godot > "$OUTDIR/logcat.txt" 2>&1 &
+LOGCAT_PID=$!
+sleep 30
+kill "$LOGCAT_PID" 2>/dev/null || true
+wait "$LOGCAT_PID" 2>/dev/null || true
 
 # --- screencap ---
 echo "Taking screencap..."
