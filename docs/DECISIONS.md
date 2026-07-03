@@ -793,3 +793,16 @@ playable. Real playtest feedback then re-prioritises UX items 5-7 better than
 designing further ahead.
 Security: unchanged — client stays a pure renderer, all logic server-authoritative,
 no client secrets; join_or_create matchmaking is local-dev only.
+
+## 059 — Testing Framework: GUT 9.6.0, pinned
+
+Decision: Use GUT (Godot Unit Test, bitwes/Gut) version 9.6.0 for all GDScript
+headless testing. Vendored under godot/addons/gut/, same pattern as the Colyseus
+SDK (Decision 036) — a version.json pin file, registered as an editor plugin in
+project.godot, never auto-updated.
+Reason: Every First Playable task (Decision 058, GC2-GC7) has a done-criterion
+that runs headless GUT tests, but no test framework existed in the repo yet.
+GUT 9.6.0 is bitwes/Gut's release specifically targeting Godot 4.6.x
+compatibility (confirmed via the project's GitHub releases), matching this
+project's pinned Godot 4.6.3 (Decision 035).
+Security: neutral — dev/test-only tooling, never shipped in a production build.
