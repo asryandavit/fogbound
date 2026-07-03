@@ -76,25 +76,46 @@ GUT 9.6.0 test framework vendored as a prerequisite (Decision 059) — needed by
 task GC2-GC7's done-criterion, none of which had it available before this task.
 Human approval gate required before GC3.
 
-### GC3 — Board Renderer
-Files: godot/scenes/match/board/BoardLayer.tscn, FogLayer.tscn
+### GC3 — Board Renderer ✅ DONE (2026-07-04)
+Files: godot/scripts/board_coord.gd, godot/scenes/match/board/board_layer.gd,
+       BoardLayer.tscn, fog_layer.gd, FogLayer.tscn
 Spec: docs/superpowers/specs/2026-07-03-first-playable-sprint-design.md
 
 - Two TileMapLayer nodes: BoardLayer (terrain) + FogLayer (fog overlay) — never one node per tile
 - Listens to GameState.state_initialized and GameState.tile_changed signals
-- Coordinate mapping: server x,y → TileMap Vector2i(col, row), origin top-left
-- Minimal tile set: terrain, Coin, Shield, Sword (Decision 058 scope cut)
+- Coordinate mapping: BoardCoord.to_tilemap_coord() — Vector2i(x, (board_rows-1)-y).
+  CORRECTION vs originally-planned "origin top-left" direct mapping: server y=0 is the
+  "bottom" row (backend/src/colyseus/rooms/GameRoom.ts initializeBoard/spawnExplorers),
+  Godot TileMapLayer y increases downward — a naive Vector2i(x,y) mapping would render
+  the board upside-down. board_coord.gd is shared by both layers to avoid duplicating this.
+- Minimal tile set: tileType=terrain kind ("grass" is all the server generates today;
+  "water" exists only in a combat-rule check, not yet wired to board gen), treasureType=
+  overlay ("coin"/"shield" exist in backend test fixtures; "sword" doesn't exist server-side
+  yet — Decision 058 names it as client scope, so BoardLayer renders it anyway, ready for
+  when the server adds it). CORRECTION vs originally-assumed "terrain, Coin, Shield, Sword
+  are all tileType values" — Coin/Shield/Sword are treasureType, a separate field.
+- Procedural placeholder swatches (Image.create_empty + fill_rect + ImageTexture), no art files
 - Pure renderer — no game logic
 
 GUT file: godot/tests/gc3/test_board_renderer.gd
 - test_board_paints_terrain_on_initialized — seed GameState with 3×3 tiles; emit state_initialized →
-                                             BoardLayer.get_cell_source_id(0, Vector2i(0,0)) >= 0
+                                             BoardLayer.get_cell_source_id(BoardCoord.to_tilemap_coord(...)) >= 0
 - test_fog_cell_cleared_on_reveal          — emit tile_changed with isRevealed=true →
-                                             FogLayer.get_cell_source_id(0, coord) == TileMap.INVALID_CELL
+                                             FogLayer.get_cell_source_id(coord) == -1
 - test_fog_cell_present_on_hidden          — emit tile_changed with isRevealed=false →
-                                             FogLayer cell at coord is a valid tile id
+                                             FogLayer cell at coord is a valid tile id (>= 0)
 
-Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit → 0 failures, 0 errors.
+CORRECTION vs originally-written test signatures: TileMapLayer (Godot 4.3+, the node this
+project uses per Decision 021/047) takes NO layer-index argument — get_cell_source_id(coords),
+not get_cell_source_id(0, coords) (that's the old TileMap node's signature). Also no
+TileMap.INVALID_CELL constant exists — get_cell_source_id returns literal -1 for an empty cell.
+
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit → 3/3 passed, 0 failures, 0 errors.
+Verified live against fogbound_backend: BoardLayer/FogLayer temporarily wired into Main.tscn,
+joined the room, confirmed correctly-oriented painted cells matching server tile data, then reverted.
+Not in this task's scope: wiring BoardLayer/FogLayer into the full Match scene tree
+(GameWorld > BoardLayer, FogLayer, Explorers, Camera2D per Decision 047) — happens once
+explorers (GC4) and camera (GC7) exist too.
 Human approval gate required before GC4.
 
 ### GC4 — Explorer Renderer

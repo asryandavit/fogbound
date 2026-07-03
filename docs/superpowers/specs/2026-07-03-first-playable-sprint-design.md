@@ -51,14 +51,25 @@ Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc2 -gexit`
 
 ## GC3 — Board Renderer
 
-Files: `godot/scenes/match/board/BoardLayer.tscn`, `FogLayer.tscn`
+Files: `godot/scripts/board_coord.gd`, `godot/scenes/match/board/BoardLayer.tscn`, `FogLayer.tscn`
 GUT: `godot/tests/gc3/test_board_renderer.gd`
+
+Corrections found during implementation (see Decision log / AGENT.md for full detail):
+- `TileMapLayer` (Godot 4.3+) takes no layer-index argument — `get_cell_source_id(coords)`,
+  not `get_cell_source_id(0, coords)`; no `TileMap.INVALID_CELL` constant exists, empty
+  cells return literal `-1`.
+- `tileType` is the terrain kind (server only generates `"grass"` today); `treasureType`
+  is a separate overlay field (`"coin"`/`"shield"` exist server-side, `"sword"` doesn't
+  yet — client renders it anyway per Decision 058's stated scope).
+- Server y=0 is the "bottom" row; Godot's y increases downward, so rendering needs
+  `Vector2i(x, (board_rows-1)-y)` — implemented once in `board_coord.gd`, shared by
+  both layers.
 
 | Test | Assertion |
 |---|---|
-| `test_board_paints_terrain_on_initialized` | Seed GameState with 3×3 tiles; emit `state_initialized` → `BoardLayer.get_cell_source_id(0, Vector2i(0,0)) >= 0` |
-| `test_fog_cell_cleared_on_reveal` | Emit `tile_changed` with `isRevealed=true` → `FogLayer.get_cell_source_id(0, coord) == TileMap.INVALID_CELL` |
-| `test_fog_cell_present_on_hidden` | Emit `tile_changed` with `isRevealed=false` → FogLayer cell at coord is a valid tile id |
+| `test_board_paints_terrain_on_initialized` | Seed GameState with 3×3 tiles; emit `state_initialized` → `BoardLayer.get_cell_source_id(BoardCoord.to_tilemap_coord(tile, 3)) >= 0` |
+| `test_fog_cell_cleared_on_reveal` | Emit `tile_changed` with `isRevealed=true` → `FogLayer.get_cell_source_id(coord) == -1` |
+| `test_fog_cell_present_on_hidden` | Emit `tile_changed` with `isRevealed=false` → FogLayer cell at coord is a valid tile id (>= 0) |
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc3 -gexit` → 0 failures, 0 errors.
 
