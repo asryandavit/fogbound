@@ -745,3 +745,51 @@ Reason: The exploit dies as a natural consequence of existing rules
 (delivery-to-score + combat-drop) rather than a bolted-on punishment system.
 Simplest fair solution; avoids penalizing honest disconnects.
 Security: scoring is server-side only (Decision 039); clients cannot self-award.
+
+## 058 — First Playable milestone: gray-box scope cut and build approach
+
+Decision: The immediate delivery target is a "First Playable" — a gray-box,
+2-player match playable end to end on the Godot client, function only, no art
+(this is the existing AGENT.md Playable Milestone, now the top priority). The
+design thread pauses new work (UX items 5-7 stay parked) until First Playable
+ships and is playtested.
+
+Scope IN — build sequence GC2-GC7:
+- GC2 state store; GC3 board + fog (two TileMapLayers); GC4 explorers (sprite +
+  lerp); GC5 input (tap-select / tap-move, request-only); GC6 minimal HUD (turn
+  banner, End Turn, contextual Undo only); GC7 camera (pinch + double-tap).
+
+Scope CUT/deferred for First Playable — parked, NOT cancelled:
+- Base placement UI: use the Decision 056 fallback (auto-spawn at centre of the
+  player's side) as v0 behaviour; the sequential-placement UI comes later.
+- Tiles: minimal set only — plain terrain + Coins + Shield + Sword. Remaining
+  tiles are data-driven .tres content drops, not code.
+- Deferred: explorer inspection card (055 visuals), discovery popups + Tilepedia,
+  onboarding, supporting screens (menu/lobby/results as bare buttons), async mode,
+  matchmaking (use join_or_create — two devices join one room), auth (already
+  deferred, 046), push notifications, all art/audio/animation/juice.
+
+Build approach — protects the reviewed-steps / novice-developer principle:
+- Per-task autonomy INSIDE the /sprint loop: Claude Code writes code, runs headless
+  GUT tests, runs a desktop client against the live backend, reads logs, fixes,
+  and repeats with no human needed within a task.
+- Human approval GATE BETWEEN tasks: a short "what changed + test results" review
+  and sign-off before the next task (~6 gates for GC2-GC7). NOT fully autonomous
+  end to end — an early wrong assumption must not compound unreviewed across tasks.
+- AUTOMATION.md anti-drift still applies: Plan Mode, spec-compliance + security
+  review subagents, DECISIONS.md checks.
+
+Verification harness:
+- Fast inner loop: headless GUT tests + a desktop Godot run talking to
+  ws://localhost:4567.
+- Slower end-to-end loop: Android emulator via adb (logcat filtered to Godot,
+  exec-out screencap), plus OrbStack/Docker logs for Colyseus + NestJS, captured
+  into a test-artifacts/ folder for analysis.
+
+Reason: Backend, rules engine (48 tests), and GC1 are already done — the only thing
+between here and a playable match is the GC2-GC7 client. Gray-box + minimal tiles +
+auto-spawn removes the largest remaining UI work while keeping the match fully
+playable. Real playtest feedback then re-prioritises UX items 5-7 better than
+designing further ahead.
+Security: unchanged — client stays a pure renderer, all logic server-authoritative,
+no client secrets; join_or_create matchmaking is local-dev only.
