@@ -47,6 +47,10 @@ code, ARCHITECTURE.md, GODOT_CLIENT.md, or AGENT.md (build-thread files).
 
 ## Backlog (build-useful order)
 
+> **Paused for First Playable (Decision 058).** Items 5-7 stay parked until the
+> gray-box GC2-GC7 milestone ships and is playtested. Design resumes after, guided
+> by real match feedback.
+
 ### 1. ☑ Match screen — portrait phone
 Keystone layout everything else references. Top bar / board / action strip
 per DECISIONS 031, showing the locked fog model (shared, step-only, amber
