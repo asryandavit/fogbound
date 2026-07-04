@@ -9,6 +9,7 @@ extends Node
 # ─── Signals (Decision 048 — transport layer only) ────────────────────────────
 signal connection_state_changed(new_state: String)
 signal server_message(type: String, data: Dictionary)
+signal move_sent
 
 # ─── Connection state machine ─────────────────────────────────────────────────
 enum State { DISCONNECTED, CONNECTING, CONNECTED, RECONNECTING, ERROR }
@@ -80,6 +81,16 @@ func send_move(explorer_id: String, target_x: int, target_y: int) -> void:
 		"targetX":    target_x,
 		"targetY":    target_y,
 	})
+	move_sent.emit()
+
+## Send an end-turn request to the server (backend/src/colyseus/rooms/GameRoom.ts:
+## onMessage('end_turn', ...) — no payload; the server identifies the player by
+## client session). REQUEST only — the server advances turnState, never the client.
+func send_end_turn() -> void:
+	if not _room or not _room.connected:
+		push_warning("NetworkManager: send_end_turn called while not connected — ignoring")
+		return
+	_room.send_message("end_turn", {})
 
 ## Cleanly leave the current room.
 func disconnect_from_match() -> void:

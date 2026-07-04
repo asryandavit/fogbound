@@ -110,21 +110,25 @@ previously stored the playerId the client claims during join).
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit` → 0 failures, 0 errors.
 
-Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit` → 0 failures, 0 errors.
-
 ## GC6 — Minimal HUD
 
-Files: `godot/scenes/match/hud/` (TurnBanner Label, EndTurnButton, UndoButton — bare Godot controls, no art)
+Files: `godot/scenes/match/hud/Hud.tscn`, `hud.gd` (TurnBanner Label, EndTurnButton, UndoButton — bare Godot controls, no art)
 GUT: `godot/tests/gc6/test_hud.gd`
+
+`NetworkManager` gained `move_sent` (signal) and `send_end_turn()` — neither existed;
+confirmed the backend's end-turn message name (`'end_turn'`, no payload) directly from
+`backend/src/colyseus/rooms/GameRoom.ts`.
 
 | Test | Assertion |
 |---|---|
-| `test_turn_banner_your_turn` | `current_player_id = local_id`; emit `turn_changed` → `$TurnBanner.text == "Your Turn"` |
-| `test_turn_banner_opponent_turn` | Emit `turn_changed` with opponent id → text contains `"Waiting…"` |
-| `test_end_turn_enabled_your_turn` | current player == local → `$EndTurnButton.disabled == false` |
-| `test_end_turn_disabled_opponent_turn` | current player != local → `$EndTurnButton.disabled == true` |
-| `test_undo_hidden_initially` | Init → `$UndoButton.visible == false` |
-| `test_undo_appears_after_send_move` | `NetworkManager.move_sent` emits → `$UndoButton.visible == true` |
+| `test_turn_banner_your_turn` | `current_player_id = local_id`; `GameState.set_turn_state(...)` → `hud.turn_banner.text == "Your Turn"` |
+| `test_turn_banner_opponent_turn` | `set_turn_state` with opponent id → `"Waiting…" in hud.turn_banner.text` |
+| `test_end_turn_enabled_your_turn` | current player == local → `hud.end_turn_button.disabled == false` |
+| `test_end_turn_disabled_opponent_turn` | current player != local → `hud.end_turn_button.disabled == true` |
+| `test_undo_hidden_initially` | Init → `hud.undo_button.visible == false` |
+| `test_undo_appears_after_send_move` | `NetworkManager.move_sent.emit()` → `hud.undo_button.visible == true` |
+
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit` → 0 failures, 0 errors.
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit` → 0 failures, 0 errors.
 

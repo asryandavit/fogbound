@@ -1,0 +1,41 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/match/hud/hud.gd" id="1"]
+
+[node name="Hud" type="CanvasLayer"]
+script = ExtResource("1")
+layer = 1
+
+[node name="TurnBanner" type="Label" parent="."]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -80.0
+offset_top = 16.0
+offset_right = 80.0
+offset_bottom = 44.0
+horizontal_alignment = 1
+text = "Waiting…"
+
+[node name="EndTurnButton" type="Button" parent="."]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -140.0
+offset_top = -80.0
+offset_right = -20.0
+offset_bottom = -20.0
+text = "End Turn"
+
+[node name="UndoButton" type="Button" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -80.0
+offset_right = 140.0
+offset_bottom = -20.0
+text = "Undo"
+visible = false

@@ -201,28 +201,35 @@ confirmation that Decision 039's real enforcement point (server-side validation)
 even when a client's local guard is bypassed, with no crashes or errors in the round trip.
 Human approval gate required before GC6.
 
-### GC6 — Minimal HUD
-Files: godot/scenes/match/hud/ (TurnBanner, EndTurnButton, UndoButton — bare Godot Controls)
+### GC6 — Minimal HUD ✅ DONE (2026-07-04)
+Files: godot/scenes/match/hud/Hud.tscn, hud.gd (TurnBanner, EndTurnButton, UndoButton — bare Godot Controls)
 Spec: docs/superpowers/specs/2026-07-03-first-playable-sprint-design.md
 
 Decision 058 scope: menus/lobby/results as bare buttons; no art, no inspector card, no popups.
 Decision 051: board-first floating HUD on CanvasLayer; End Turn is primary action.
 - TurnBanner Label: floats top of board, shows "Your Turn" or "Waiting…"
 - EndTurnButton: disabled when not your turn; sends end_turn message on press
-- UndoButton: hidden until move sent; hidden again after end_turn
-- Driven by GameState signals only — no direct server calls
+- UndoButton: hidden until move sent; hidden again after turn_changed (End Turn advances turnState)
+- Driven by GameState.turn_changed + NetworkManager.move_sent signals only
+- network_manager.gd gained move_sent signal (emitted at the end of send_move) and
+  send_end_turn() (both added — neither existed; confirmed backend message name via
+  backend/src/colyseus/rooms/GameRoom.ts: onMessage('end_turn', ...), no payload)
 
 GUT file: godot/tests/gc6/test_hud.gd
-- test_turn_banner_your_turn          — current_player_id=local; emit turn_changed →
-                                         $TurnBanner.text == "Your Turn"
-- test_turn_banner_opponent_turn      — emit turn_changed with opponent id →
-                                         text contains "Waiting…"
-- test_end_turn_enabled_your_turn     — current player == local → $EndTurnButton.disabled == false
-- test_end_turn_disabled_opponent     — current player != local → $EndTurnButton.disabled == true
-- test_undo_hidden_initially          — init → $UndoButton.visible == false
-- test_undo_appears_after_send_move   — NetworkManager.move_sent emits → $UndoButton.visible == true
+- test_turn_banner_your_turn          — GameState.set_turn_state("p1",1,"move"), local="p1" →
+                                         hud.turn_banner.text == "Your Turn"
+- test_turn_banner_opponent_turn      — set_turn_state("p2",...), local="p1" →
+                                         "Waiting…" in hud.turn_banner.text
+- test_end_turn_enabled_your_turn     — current player == local → hud.end_turn_button.disabled == false
+- test_end_turn_disabled_opponent_turn — current player != local → hud.end_turn_button.disabled == true
+- test_undo_hidden_initially          — init → hud.undo_button.visible == false
+- test_undo_appears_after_send_move   — NetworkManager.move_sent.emit() → hud.undo_button.visible == true
 
-Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit → 6/6 passed, 0 failures, 0 errors.
+Also reconfirmed gc2 (5/5), gc3 (3/3), gc4 (4/4), gc5 (3/3) — no regressions.
+Verified live against fogbound_backend: HUD correctly showed "Waiting…" + disabled End Turn
+(single-client test, match not started — same finding as GC5), undo_button correctly toggled
+false→true on a real move_sent emission. No crashes or errors.
 Human approval gate required before GC7.
 
 ### GC7 — Camera Rig
