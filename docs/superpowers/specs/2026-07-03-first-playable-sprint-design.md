@@ -94,19 +94,21 @@ on `is_initialized`; recompute fresh from current data every time instead.
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit` → 0 failures, 0 errors.
 
-Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc4 -gexit` → 0 failures, 0 errors.
-
 ## GC5 — Input
 
 Files: `godot/scenes/match/InputController.gd`
 GUT: `godot/tests/gc5/test_input_controller.gd`
-Mock: `MockNetworkManager` — records `send_move` calls, never mutates GameState.
+Mock: `MockNetworkManager` — intercepts `send_move` only; `local_player_id` is read
+directly off the real `NetworkManager` autoload (added by this task — nothing
+previously stored the playerId the client claims during join).
 
 | Test | Assertion |
 |---|---|
-| `test_tap_ignored_when_not_your_turn` | `GameState.current_player_id="p2"`, local=`"p1"` → `on_tap(coord)` → `mock_net.send_move_called == false` |
-| `test_select_then_confirm_sends_move` | Tap explorer at (1,1) → tap valid target (1,2) → `mock_net.last_send == {explorer_id, x:1, y:2}` |
+| `test_tap_ignored_when_not_your_turn` | `NetworkManager.local_player_id="p1"`, `GameState.current_player_id="p2"` → `on_tap(coord)` → `mock_net.send_move_called == false` |
+| `test_select_then_confirm_sends_move` | Tap own explorer at (1,1) → tap target (1,2) → `mock_net.last_send == {explorer_id, x:1, y:2}` |
 | `test_game_state_unchanged_after_tap` | Any tap sequence → `GameState.tiles` and `.explorers` references unchanged |
+
+Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit` → 0 failures, 0 errors.
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit` → 0 failures, 0 errors.
 

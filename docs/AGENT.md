@@ -164,25 +164,41 @@ Verified live against fogbound_backend: 4-6 explorers spawned matching GameState
 count exactly, correctly-flipped world positions confirmed after the Decision 061 fix.
 Human approval gate required before GC5.
 
-### GC5 — Input Handling
+### GC5 — Input Handling ✅ DONE (2026-07-04)
 Files: godot/scenes/match/InputController.gd
 Spec: docs/superpowers/specs/2026-07-03-first-playable-sprint-design.md
 
-- Tap → select explorer, then tap target → confirm move
+- Tap → select own explorer, then tap target → confirm move (unconditional —
+  no adjacency/legality check client-side; only the server validates game rules)
 - Selection state tracked locally in InputController (not in GameState)
 - On confirm: NetworkManager.send_move(explorer_id, x, y) — REQUEST only, never local apply
-- Guard: only accept input when GameState.current_player_id == local_player_id
+- Guard: only accept input when GameState.current_player_id == NetworkManager.local_player_id
 - Never mutate GameState from input — all changes come from server
+- network_manager.gd gained local_player_id (added — nothing previously stored the
+  playerId this client claims during join; confirmed via GameRoom.ts that the server
+  uses this exact string for player.playerId/explorer.playerId/turnState.currentPlayerId)
+- board_coord.gd gained from_world_position() (inverse of to_world_position; flip_row
+  is a self-inverse so the same function un-flips), used by the real touch-input path
 
 GUT file: godot/tests/gc5/test_input_controller.gd
-Uses MockNetworkManager: records send_move calls, never mutates GameState.
-- test_tap_ignored_when_not_your_turn   — GameState.current_player_id="p2", local="p1" →
+Uses MockNetworkManager (intercepts send_move only — local_player_id is read directly
+off the real NetworkManager autoload, harmless to set in tests).
+- test_tap_ignored_when_not_your_turn   — NetworkManager.local_player_id="p1",
+                                          GameState.current_player_id="p2" →
                                           on_tap(coord) → mock_net.send_move_called == false
-- test_select_then_confirm_sends_move   — tap explorer at (1,1) → tap valid target (1,2) →
+- test_select_then_confirm_sends_move   — tap own explorer at (1,1) → tap target (1,2) →
                                           mock_net.last_send == {explorer_id, x:1, y:2}
 - test_game_state_unchanged_after_tap   — any tap sequence → GameState.tiles/.explorers unchanged
 
-Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit → 0 failures, 0 errors.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc5 -gexit → 3/3 passed, 0 failures, 0 errors.
+Also reconfirmed gc2 (5/5), gc3 (3/3), gc4 (4/4) — no regressions.
+Verified live against fogbound_backend: with a single connected client the real guard
+correctly blocked input (turnState.currentPlayerId was empty, no match started yet —
+exactly the intended safe behavior). Separately confirmed send_move's full round trip
+by locally simulating "my turn" (test-only, client-side): the SERVER independently
+rejected the resulting out-of-turn move against its own authoritative turnState — a live
+confirmation that Decision 039's real enforcement point (server-side validation) holds
+even when a client's local guard is bypassed, with no crashes or errors in the round trip.
 Human approval gate required before GC6.
 
 ### GC6 — Minimal HUD

@@ -15,6 +15,11 @@ enum State { DISCONNECTED, CONNECTING, CONNECTED, RECONNECTING, ERROR }
 
 var current_state: State = State.DISCONNECTED
 
+## The playerId this client claimed during join — the server uses it verbatim
+## for player.playerId, explorer.playerId, and turnState.currentPlayerId
+## (backend/src/colyseus/rooms/GameRoom.ts: options.playerId || client.sessionId).
+var local_player_id: String = ""
+
 # Untyped: Colyseus.* are inner classes; type annotations fail at parse time
 # before the GDExtension populates the class registry (spike confirmed this).
 var _client    = null  # Colyseus.Client
@@ -47,6 +52,7 @@ func connect_to_match(options: Dictionary = {}) -> void:
 		"username": "Player",
 	}
 	join_opts.merge(options, true)  # caller options override defaults
+	local_player_id = join_opts["playerId"]
 
 	_room = _client.join_or_create("fogbound_room", join_opts)
 	if not _room:

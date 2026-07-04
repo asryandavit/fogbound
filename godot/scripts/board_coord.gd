@@ -23,3 +23,10 @@ static func to_tilemap_coord(tile_data: Dictionary, board_rows: int) -> Vector2i
 
 static func to_world_position(coord: Vector2i, board_rows: int) -> Vector2:
     return Vector2(coord.x, flip_row(coord.y, board_rows)) * TILE_PX
+
+## Inverse of to_world_position. flip_row is a self-inverse ((rows-1)-y applied
+## twice returns y), so the same function un-flips the row back to server space.
+static func from_world_position(world_pos: Vector2, board_rows: int) -> Vector2i:
+    var col := int(round(world_pos.x / TILE_PX))
+    var row := int(round(world_pos.y / TILE_PX))
+    return Vector2i(col, flip_row(row, board_rows))
