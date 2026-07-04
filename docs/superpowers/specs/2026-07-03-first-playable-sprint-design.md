@@ -130,19 +130,24 @@ confirmed the backend's end-turn message name (`'end_turn'`, no payload) directl
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit` → 0 failures, 0 errors.
 
-Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc6 -gexit` → 0 failures, 0 errors.
-
 ## GC7 — Camera Rig
 
 Files: `godot/scenes/match/CameraController.gd`
 GUT: `godot/tests/gc7/test_camera_controller.gd`
 
+Two corrections found during implementation (see Decision 061/062 for full detail):
+- `BoardCoord.compute_board_rows({})` returned `1`, not `0`, for an empty tiles
+  dict (the unconditional `max_y + 1`) — fixed to return `0` so every consumer's
+  "not computed yet" guard is actually reachable (Decision 062).
+- Zoom bounds must be recomputed fresh on every `apply_pinch_delta()` call, not
+  cached once in `_ready()` — same GameState.tiles ordering hazard as Decision 061.
+
 | Test | Assertion |
 |---|---|
-| `test_auto_pan_fires_on_local_turn` | Emit `turn_changed` with local player id → `CameraController._pan_target != initial_position` |
-| `test_auto_pan_skipped_on_opponent_turn` | Emit `turn_changed` with opponent id → `CameraController._pan_target` unchanged |
-| `test_zoom_clamped_at_min` | Simulate pinch beyond min → `camera.zoom.x >= min_zoom` |
-| `test_zoom_clamped_at_max` | Simulate pinch beyond max → `camera.zoom.x <= max_zoom` |
+| `test_auto_pan_fires_on_local_turn` | Seed own explorer, `GameState.set_turn_state(local,...)` → `controller._pan_target != initial value` |
+| `test_auto_pan_skipped_on_opponent_turn` | `set_turn_state(opponent,...)` → `controller._pan_target` unchanged |
+| `test_zoom_clamped_at_min` | Huge zoom-in pinch delta → `zoom.x >= min_zoom` |
+| `test_zoom_clamped_at_max` | Huge zoom-out pinch delta → `zoom.x <= max_zoom` |
 
 Done: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc7 -gexit` → 0 failures, 0 errors.
 

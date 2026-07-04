@@ -870,3 +870,29 @@ description is the intent, not the confirmed behavior of the current
 network_manager.gd wiring. Revisit if a real "all collections populated"
 signal is needed later (e.g. a loading spinner) — it would need to be
 derived differently, not from this signal as-is.
+
+## 062 — BoardCoord.compute_board_rows() bug: empty dict returned 1, not 0
+
+Decision: `BoardCoord.compute_board_rows({})` (an empty tiles Dictionary) must
+return 0, not 1, so every consumer's `if board_rows == 0` guard ("data not
+computed yet") is actually reachable.
+Reason: Found during GC7 live-backend testing. The original implementation
+(`max_y := 0; ...; return max_y + 1`) never special-cased an empty dict — the
+for loop simply never executes, leaving `max_y` at its initial 0, and the
+function unconditionally returned `0 + 1 = 1`. Every prior consumer
+(BoardLayer, FogLayer, ExplorersContainer) happened not to notice: an
+`if board_rows == 0` guard checked immediately after construction, before any
+real tiles existed, silently never fired, but nothing was being rendered/
+positioned at that moment anyway, so the wrong `board_rows=1` had no visible
+effect. `CameraController`'s `_recompute_zoom_bounds()` was the first consumer
+to actually COMPUTE something meaningful (zoom bounds) from this bogus value —
+confirmed live: `min_zoom` came out as 2.5 and `max_zoom` as 0.55, i.e.
+inverted (min > max), because a phantom 1-row board produced a tiny, wrong
+`max_zoom`. Fixed with an explicit `if tiles.is_empty(): return 0` at the top
+of `compute_board_rows()`. Since this shares the exact same underlying hazard
+as Decision 061 (GameState.state_initialized/collections populate in a
+surprising order), `CameraController.apply_pinch_delta()` was also changed to
+recompute zoom bounds fresh on every call rather than trusting a value cached
+once in `_ready()` — the same mitigation already applied in
+`explorers_container.gd` for Decision 061.
+Security: neutral — correctness fix, no data exposure change.

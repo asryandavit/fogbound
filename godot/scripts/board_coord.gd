@@ -7,7 +7,12 @@ class_name BoardCoord extends RefCounted
 
 const TILE_PX := 32
 
+## Returns 0 for an empty dict (no data yet) so callers can reliably guard on
+## "== 0" to mean "not computed yet" — an unguarded max_y+1 would return 1 for
+## an empty dict, which is indistinguishable from a genuine 1-row board.
 static func compute_board_rows(tiles: Dictionary) -> int:
+    if tiles.is_empty():
+        return 0
     var max_y := 0
     for tile_data in tiles.values():
         max_y = max(max_y, int(tile_data.get("y", 0)))

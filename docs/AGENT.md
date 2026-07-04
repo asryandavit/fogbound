@@ -232,35 +232,72 @@ Verified live against fogbound_backend: HUD correctly showed "Waiting…" + disa
 false→true on a real move_sent emission. No crashes or errors.
 Human approval gate required before GC7.
 
-### GC7 — Camera Rig
+### GC7 — Camera Rig ✅ DONE (2026-07-04)
 Files: godot/scenes/match/CameraController.gd
 Spec: docs/superpowers/specs/2026-07-03-first-playable-sprint-design.md
 
-- Camera2D with pinch zoom via InputEventMagnifyGesture (fallback: manual 2-finger tracking)
-- Double-tap cycle: FitToScreen → Default → Close (5×5), 350ms EaseInOutCubic via create_tween()
-- Auto-pan fires on local player's turn start ONLY — never on opponent turns (Decision 025 fog rule)
-- Zoom clamp: min = full board + 10% padding; max = 5×5 tiles visible
+- Camera2D (class_name CameraController extends Camera2D) with pinch zoom via
+  InputEventMagnifyGesture (factor treated as a relative delta) — real-hardware
+  gesture behavior not empirically verified, no automated test covers this path
+- Double-tap cycle: FitToScreen (max_zoom) → Default (geometric mean) →
+  Close ~5×5 (min_zoom), 350ms EaseInOutCubic via create_tween() — not covered
+  by an automated test (simulating real double-tap timing headlessly is unreliable)
+- Auto-pan fires on local player's turn start ONLY — never on opponent turns
+  (Decision 025 fog rule); pans to the centroid of the local player's own explorers
+- Zoom clamp: min_zoom = ~5×5 tiles visible (most magnified), max_zoom = full
+  board + 10% padding (least magnified) — computed from board size + viewport
+
+Found + fixed two real bugs during live verification:
+1. `apply_pinch_delta()` originally trusted zoom bounds computed once in
+   `_ready()` — same Decision 061 ordering hazard: GameState.tiles can still be
+   empty at that point, producing a wrong/inverted min_zoom > max_zoom (confirmed
+   live). Fixed the same way as explorers_container.gd: recompute fresh on every
+   `apply_pinch_delta()` call rather than trusting a cached value.
+2. Root-caused why the ordering hazard mattered here: `BoardCoord.compute_board_rows({})`
+   returned 1, not 0, for an empty tiles dict (an empty for-loop leaves max_y=0,
+   unconditionally returning max_y+1=1) — see Decision 062. Every prior consumer's
+   `if board_rows == 0` guard was silently unreachable but harmless (nothing was
+   being rendered at that early moment anyway); CameraController was the first to
+   compute something meaningful from the bogus value, exposing the bug. Fixed at
+   the source in board_coord.gd — benefits all consumers, not just this task.
 
 GUT file: godot/tests/gc7/test_camera_controller.gd
-- test_auto_pan_fires_on_local_turn    — emit turn_changed with local player id →
-                                          CameraController._pan_target != initial_position
-- test_auto_pan_skipped_opponent_turn  — emit turn_changed with opponent id →
-                                          CameraController._pan_target unchanged
-- test_zoom_clamped_at_min             — pinch delta that would go below min_zoom →
-                                          camera.zoom.x >= min_zoom
-- test_zoom_clamped_at_max             — pinch delta that would go above max_zoom →
-                                          camera.zoom.x <= max_zoom
+- test_auto_pan_fires_on_local_turn          — seed own explorer, GameState.set_turn_state(local,...) →
+                                                controller._pan_target != initial value
+- test_auto_pan_skipped_on_opponent_turn     — set_turn_state(opponent,...) →
+                                                controller._pan_target unchanged
+- test_zoom_clamped_at_min                   — huge zoom-in pinch delta → zoom.x >= min_zoom
+- test_zoom_clamped_at_max                   — huge zoom-out pinch delta → zoom.x <= max_zoom
 
-Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc7 -gexit → 0 failures, 0 errors.
-Human approval gate required — Playable Milestone reached on pass.
+Done: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gc7 -gexit → 4/4 passed, 0 failures, 0 errors.
+Also reconfirmed gc2 (5/5), gc3 (3/3), gc4 (4/4), gc5 (3/3), gc6 (6/6) — no regressions
+(25/25 total across the whole GC2-GC7 suite).
+Verified live against fogbound_backend: zoom bounds computed correctly once real tile
+data loaded (min_zoom=2.5 < max_zoom=7.15, correctly ordered after the fix), pinch
+clamping respected both bounds, auto-pan target correctly computed from the local
+player's own explorer positions. No crashes or errors.
+Playable Milestone reached — GC1-GC7 complete.
 
 ---
 
-### Playable Milestone (GC1–GC7 complete)
+### Playable Milestone (GC1–GC7 complete, scene assembly still needed)
 Gray-box board, 2-player match playable end to end on Godot:
 - Both players join room; explorers appear and move; fog reveals
 - Treasure collected and scored; win condition triggers
 - No art required — function only
+
+Status: every GC2-GC7 component is built, unit-tested (25/25 GUT tests passing),
+and individually verified live against fogbound_backend — but each was built and
+verified STANDALONE (per the explicit "not in scope" notes on GC3/GC4). No task
+yet assembled them into one real Match scene. Remaining before an actual human
+can open the client and play a 2-player match:
+- Build godot/scenes/match/Match.tscn per Decision 047's tree (GameWorld node
+  containing BoardLayer, FogLayer, Explorers, CameraController; Hud as a sibling
+  CanvasLayer; InputController dispatching taps to it)
+- Wire NetworkManager.connect_to_match() to fire when the match scene loads
+- A real 2-client playtest (this session's live checks were single-client,
+  confirming each piece works correctly but never exercising a real started
+  match with actual turn-taking between two players)
 
 ---
 
