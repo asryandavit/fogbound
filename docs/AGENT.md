@@ -280,7 +280,7 @@ Playable Milestone reached — GC1-GC7 complete.
 
 ---
 
-### Playable Milestone (GC1–GC7 complete, scene assembled) ✅ (2026-07-04)
+### Playable Milestone (GC1–GC7 complete, scene assembled, one P0 bug open)
 Gray-box board, 2-player match playable end to end on Godot:
 - Both players join room; explorers appear and move; fog reveals
 - Treasure collected and scored; win condition triggers
@@ -303,9 +303,18 @@ re-fires once registered (the object is mutated in place, never reassigned),
 the object afterward returns stale/null data, and (3) GDScript lambdas capture
 outer local variables BY VALUE, not by reference — a general language gotcha,
 not Colyseus-specific. Fixed with a Dictionary (reference type) to share
-mutable state across the field-level closures. Confirmed live: both clients
-now agree on the exact same current_player_id regardless of which one created
-the room.
+mutable state across the field-level closures. Confirmed live in a room with
+already-accumulated players: both clients agree on the same current_player_id
+regardless of which one created the room.
+
+**P0 OPEN ISSUE — see Decision 064**: re-testing with a freshly-restarted
+backend (no accumulated room state) and two clients joining ~1s apart —
+i.e. the moment a match genuinely transitions from waiting to in_progress —
+surfaced `current_player_id` rapidly flip-flopping between both players' IDs
+on both clients, starting before either client sent any move/end_turn action.
+Not yet root-caused: could be a backend bug or a beta-SDK decode issue under
+the room's 50ms patch rate. This must be resolved before the client is
+genuinely playable for real turn-taking, not just a connectivity smoke test.
 
 Not yet done: a real 2-client test of the full move → end_turn → turn-advances
 round trip (attempted; blocked by the long-lived dev room's turnState being

@@ -975,3 +975,49 @@ clear it). The `current_player_id` sync fix itself is fully confirmed;
 the move/end-turn round trip already had its own live confirmations in
 GC5 (send_move reaches the server, server-side turn validation holds) and
 GC6 (send_end_turn wired correctly) individually.
+
+## 064 — OPEN ISSUE: currentPlayerId flip-flops rapidly with two truly-fresh concurrent clients
+
+Status: **unresolved, needs further investigation.** Documenting now rather
+than continuing to chase it, given the likely scope (may require a backend
+change, an SDK-level workaround, or upstream investigation) exceeds what's
+reasonable to resolve inline.
+
+Symptom: with a freshly-restarted `fogbound_backend` (no accumulated room
+state) and two real Godot clients connecting ~1 second apart, both clients'
+`currentPlayerId` value rapidly oscillates between the two players' IDs —
+confirmed via debug tracing on both clients showing alternating
+`new=player_A old=player_B` / `new=player_B old=player_A` events, several
+times within a few seconds. Critically, this starts **before either client
+has sent any move or end_turn message** — ruled out as a side effect of the
+test script's own actions. The server's turn timer defaults to 60s
+(`GameRoom.ts` `onCreate`: `options.turnTimerSeconds || 60`), far longer than
+the observation window, so this isn't the natural timer-driven
+`advanceTurn()` either.
+
+This is DIFFERENT from the Decision 063 bug (already fixed): 063 was about
+the CLIENT failing to notice a real, one-time, correct server value. This is
+the client observing a value that appears to be genuinely flip-flopping —
+either a real (unexplained) server-side oscillation, or a decode-level
+artifact in the beta Colyseus GDScript SDK (0.17.11) under this room's
+`setPatchRate(50)` (a patch every 50ms) when two clients are both actively
+receiving frequent updates simultaneously. Not yet determined which.
+
+Reproduction: restart `fogbound_backend` (clears in-memory room state), then
+launch two `godot --headless --path godot` processes about 1 second apart,
+each printing `GameState.current_player_id` on a timer for ~15 seconds.
+Contrast with Decision 063's verification method (which used an
+ALREADY-established room with many accumulated players) — that scenario did
+NOT reproduce this, suggesting it may be specific to the moment a match
+FRESHLY transitions from `waiting` to `in_progress` in `startMatch()`
+(`GameRoom.ts`), while both joining clients are actively listening.
+
+Not investigated yet: whether the same oscillation is visible in the raw
+`docker logs fogbound_backend` output at the moment `startMatch()` runs (that
+would confirm/rule out a genuine server-side bug rather than a client decode
+issue); whether lowering `setPatchRate` changes the behavior; whether the
+oscillation is bounded (eventually settles) or continues indefinitely.
+Security: none identified — this affects turn-taking UX correctness, not an
+exposure. But it is a P0 correctness bug for actual 2-player turn-based play
+and must be resolved before this client can be considered genuinely playable
+beyond a single-client smoke test.
