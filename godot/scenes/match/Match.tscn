@@ -1,0 +1,29 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scenes/match/match.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/match/board/BoardLayer.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/match/board/FogLayer.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/match/explorers/Explorers.tscn" id="4"]
+[ext_resource type="Script" path="res://scenes/match/CameraController.gd" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/match/hud/Hud.tscn" id="6"]
+[ext_resource type="Script" path="res://scenes/match/InputController.gd" id="7"]
+
+[node name="Match" type="Node"]
+script = ExtResource("1")
+
+[node name="GameWorld" type="Node2D" parent="."]
+
+[node name="BoardLayer" parent="GameWorld" instance=ExtResource("2")]
+
+[node name="FogLayer" parent="GameWorld" instance=ExtResource("3")]
+
+[node name="Explorers" parent="GameWorld" instance=ExtResource("4")]
+
+[node name="Camera2D" type="Camera2D" parent="GameWorld"]
+script = ExtResource("5")
+current = true
+
+[node name="Hud" parent="." instance=ExtResource("6")]
+
+[node name="InputController" type="Node" parent="."]
+script = ExtResource("7")

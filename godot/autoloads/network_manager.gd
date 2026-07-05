@@ -225,10 +225,69 @@ func _setup_state_callbacks() -> void:
 		StateMapper.apply_player_change(id, player)
 	)
 
-	# Turn state (nested REF schema on root). listen(), not on_change("turnState", ...) —
-	# see EMPIRICAL CORRECTIONS above.
+	# Turn state (nested REF schema on root, mutated IN PLACE server-side —
+	# backend/src/colyseus/rooms/GameRoom.ts: this.state.turnState.currentPlayerId
+	# = ... never reassigns the turnState reference itself).
+	#
+	# CONFIRMED LIVE with two real concurrent clients, in two stages:
+	#   1. listen(state, "turnState", callback) alone only fires when the OUTER
+	#      reference changes — which it never does — so it silently missed
+	#      every later in-place field mutation for a client connected before
+	#      the match started (that client's current_player_id stayed empty
+	#      forever; a client joining AFTER the match started happened to see
+	#      the correct value because its first full-state hydration already
+	#      had the field set).
+	#   2. Attaching nested listen()s on the turnState object's fields (the
+	#      pattern used for tiles/explorers) DOES fire correctly with the
+	#      right new-value argument each time — but re-reading the field via
+	#      .get() on that SAME captured object reference afterward (or via a
+	#      fresh state.get("turnState") re-fetch) returns stale/null data.
+	#      Root-level single REF schema objects apparently don't stay
+	#      reliably readable after the fact, unlike MapSchema collection
+	#      items (tiles/explorers), which do.
+	#   3. Tracking each field in its own local `var` (mutated from each
+	#      listen() callback's new-value argument) ALSO failed — confirmed via
+	#      an isolated repro that GDScript lambdas capture outer local
+	#      variables BY VALUE (a snapshot at closure-creation time), not by
+	#      reference. Three sibling closures each mutating what looks like a
+	#      shared `current_player_id`/`turn_number`/`phase` were each mutating
+	#      their OWN frozen copy — a 4th closure (`push`) calling
+	#      StateMapper always saw its own copy from the moment IT was created,
+	#      never the updates. See Decision 063.
+	# Fix: use a Dictionary (a reference type) to hold the three tracked
+	# values. Every closure captures the SAME dict reference by value, but the
+	# dict's CONTENTS are shared and mutations are visible across all of them.
 	_callbacks.listen(state, "turnState", func(turn_state, _old_val) -> void:
-		StateMapper.apply_turn_change(turn_state)
+		if turn_state == null:
+			return
+		var tracked := {
+			"current_player_id": str(StateMapper._field(turn_state, "currentPlayerId", "")),
+			"turn_number": int(StateMapper._field(turn_state, "turnNumber", 0)),
+			"phase": str(StateMapper._field(turn_state, "phase", "")),
+		}
+		var push := func() -> void:
+			StateMapper.apply_turn_change_values(
+				tracked["current_player_id"], tracked["turn_number"], tracked["phase"]
+			)
+		# Guard against null: at least one of these fires once at registration
+		# with a null new-value (confirmed live — int(null) throws "Nonexistent
+		# 'int' constructor"), before any real data has arrived.
+		_callbacks.listen(turn_state, "currentPlayerId", func(n, _o) -> void:
+			if n != null:
+				tracked["current_player_id"] = str(n)
+			push.call()
+		)
+		_callbacks.listen(turn_state, "turnNumber", func(n, _o) -> void:
+			if n != null:
+				tracked["turn_number"] = int(n)
+			push.call()
+		)
+		_callbacks.listen(turn_state, "phase", func(n, _o) -> void:
+			if n != null:
+				tracked["phase"] = str(n)
+			push.call()
+		)
+		push.call()
 	)
 
 	# Signal GameState that initial hydration is complete. Zero-arg callback —

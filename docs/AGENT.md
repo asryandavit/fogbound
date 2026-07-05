@@ -280,24 +280,39 @@ Playable Milestone reached — GC1-GC7 complete.
 
 ---
 
-### Playable Milestone (GC1–GC7 complete, scene assembly still needed)
+### Playable Milestone (GC1–GC7 complete, scene assembled) ✅ (2026-07-04)
 Gray-box board, 2-player match playable end to end on Godot:
 - Both players join room; explorers appear and move; fog reveals
 - Treasure collected and scored; win condition triggers
 - No art required — function only
 
-Status: every GC2-GC7 component is built, unit-tested (25/25 GUT tests passing),
-and individually verified live against fogbound_backend — but each was built and
-verified STANDALONE (per the explicit "not in scope" notes on GC3/GC4). No task
-yet assembled them into one real Match scene. Remaining before an actual human
-can open the client and play a 2-player match:
-- Build godot/scenes/match/Match.tscn per Decision 047's tree (GameWorld node
-  containing BoardLayer, FogLayer, Explorers, CameraController; Hud as a sibling
-  CanvasLayer; InputController dispatching taps to it)
-- Wire NetworkManager.connect_to_match() to fire when the match scene loads
-- A real 2-client playtest (this session's live checks were single-client,
-  confirming each piece works correctly but never exercising a real started
-  match with actual turn-taking between two players)
+Status: godot/scenes/match/Match.tscn (match.gd) assembles every GC2-GC7
+component per Decision 047's tree — GameWorld (BoardLayer, FogLayer, Explorers,
+Camera2D running CameraController.gd) plus Hud and InputController as siblings —
+and calls NetworkManager.connect_to_match() on _ready(). godot/scenes/Main.tscn
+(the project's run/main_scene) now instances Match.tscn.
+
+Verified with two REAL concurrent Godot clients against fogbound_backend (the
+first genuine 2-client test this project has run — every prior live check was
+single-client, deferred exactly for this reason). This uncovered and fixed a
+critical, three-layer turnState sync bug — see Decision 063 for full detail:
+the room CREATOR's client would have been frozen on "Waiting…" forever, even
+on its own turn, because (1) listen() on the root turnState reference never
+re-fires once registered (the object is mutated in place, never reassigned),
+(2) nested listen()s on turnState's own fields fire correctly but re-reading
+the object afterward returns stale/null data, and (3) GDScript lambdas capture
+outer local variables BY VALUE, not by reference — a general language gotcha,
+not Colyseus-specific. Fixed with a Dictionary (reference type) to share
+mutable state across the field-level closures. Confirmed live: both clients
+now agree on the exact same current_player_id regardless of which one created
+the room.
+
+Not yet done: a real 2-client test of the full move → end_turn → turn-advances
+round trip (attempted; blocked by the long-lived dev room's turnState being
+stuck on a stale player from an earlier test session — room-state accumulation
+from a full day of iterative testing, not a new bug). The current_player_id
+sync fix itself is fully confirmed; send_move and send_end_turn each already
+had their own live confirmations individually (GC5, GC6).
 
 ---
 

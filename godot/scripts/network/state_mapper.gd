@@ -75,5 +75,15 @@ static func apply_turn_change(turn_data) -> void:
         str(_field(turn_data, "phase", ""))
     )
 
+## Same as apply_turn_change, but takes already-extracted primitive values
+## instead of a turnState object reference. Needed because a root-level
+## single REF schema field's object becomes unreadable on later re-query
+## (confirmed live with two real clients: state.get("turnState") returns
+## null after the first callback, even though the field's listen() callback
+## keeps firing correctly with valid new-value arguments) — unlike MapSchema
+## collection items (tiles/explorers), whose objects stay reliably readable.
+static func apply_turn_change_values(current_player_id: String, turn_number: int, phase: String) -> void:
+    GameState.set_turn_state(current_player_id, turn_number, phase)
+
 static func finalize_initialization() -> void:
     GameState.mark_initialized()

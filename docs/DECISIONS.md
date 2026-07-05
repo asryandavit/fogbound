@@ -896,3 +896,82 @@ recompute zoom bounds fresh on every call rather than trusting a value cached
 once in `_ready()` — the same mitigation already applied in
 `explorers_container.gd` for Decision 061.
 Security: neutral — correctness fix, no data exposure change.
+
+## 063 — Match scene assembled; critical turnState sync bug found and fixed with two real clients
+
+Decision: `godot/scenes/match/Match.tscn` (root script `match.gd`) assembles
+every GC2-GC7 component per Decision 047's Match Scene Tree — `GameWorld`
+(BoardLayer, FogLayer, Explorers, Camera2D running `CameraController.gd`) plus
+`Hud` and `InputController` as siblings — and calls
+`NetworkManager.connect_to_match()` on `_ready()`. `godot/scenes/Main.tscn`
+(the project's `run/main_scene`) now just instances `Match.tscn`.
+
+Reason: this is the first time two REAL concurrent Godot clients were run
+against `fogbound_backend` in this project (every prior live check, GC2
+through GC7, was single-client — deferred exactly for this reason, since a
+match needs 2 players to start per `GameRoom.ts`: `if
+(this.state.players.size >= 2) this.startMatch()`). Running two clients
+uncovered a critical, three-layer bug where the room CREATOR's own client
+never learned whose turn it was — the `HUD`/`InputController`/`CameraController`
+turn-gating (Decisions 025/039) would have silently frozen the creator's
+client on "Waiting…" forever, even on their own turn:
+
+1. `listen(state, "turnState", callback)` (Decision 060's crash fix) only
+   fires when the OUTER `turnState` reference changes. `GameRoom.ts` never
+   reassigns it — `this.state.turnState.currentPlayerId = ...` mutates the
+   SAME object in place forever. A client connected before `startMatch()`
+   registers this listener while the object already exists, so it never
+   fires again; the value stays frozen at whatever it was at registration
+   time (empty, for the creator). A client joining AFTER the match started
+   happened to see the right value anyway, because its first full-state
+   hydration already had the field populated — this masked the bug in every
+   single-client check.
+2. Attaching nested `listen()`s on `turnState`'s own fields (the same
+   pattern already used for tiles/explorers) DOES fire correctly with the
+   right new-value argument on every in-place mutation — but re-reading a
+   field via `.get()` on that same captured object reference afterward (or
+   via a fresh `state.get("turnState")` re-fetch) returns stale or `null`
+   data. Root-level single REF schema objects do not stay reliably readable
+   after the fact in this SDK build, unlike MapSchema collection items
+   (tiles/explorers), which do.
+3. Tracking each field (`currentPlayerId`/`turnNumber`/`phase`) in its own
+   local `var`, mutated from each field's `listen()` new-value argument,
+   ALSO failed — even though each individual closure correctly received and
+   assigned the right new value. Root-caused with an isolated repro
+   (`var x=1; a lambda sets x=99; a second lambda reads x` → prints `1`, not
+   `99`): **GDScript lambdas capture outer local variables by value — a
+   snapshot at closure-creation time — not by reference.** Three sibling
+   closures, each seemingly mutating a shared `current_player_id`, were each
+   mutating their own frozen copy; a fourth closure (`push`, calling
+   `StateMapper`) always saw only the copy frozen at the moment `push`
+   itself was created. This is a general GDScript gotcha, not specific to
+   Colyseus — anywhere multiple closures need to share mutable local state,
+   a reference type (Dictionary/Array/RefCounted) is required, not a plain
+   `var`.
+Fixed by using a `Dictionary` to hold the three tracked values — every
+closure captures the same dict reference by value, but the dict's CONTENTS
+are a shared, mutable object, so writes from any closure are visible to all
+the others. Confirmed live with two real concurrent clients: both now agree
+on the exact same `current_player_id`, matching whichever player's turn it
+actually is, regardless of which client created the room.
+
+Verification method: launched two real `godot --headless --path .` processes
+concurrently (one `sleep 1` apart) against the same live `fogbound_backend`
+room, each printing `NetworkManager.local_player_id` and
+`GameState.current_player_id` every 3 seconds for 15 seconds. This is the
+first genuine 2-client test this project has run — recommended as the
+standard verification method for any future turn-state-related change.
+
+Security: neutral — correctness fix, no data exposure change. All values
+were already on the wire (Decision 049); this only fixes whether the CLIENT
+correctly recognizes them.
+
+Not yet done: a real 2-client test of the full move → end_turn → turn
+advances round trip (attempted, but the long-lived dev room's turnState was
+stuck on a stale player from an earlier disconnected test session — a
+side effect of one dev room accumulating state across a full day of
+iterative testing, not a new bug; a fresh room or a backend restart would
+clear it). The `current_player_id` sync fix itself is fully confirmed;
+the move/end-turn round trip already had its own live confirmations in
+GC5 (send_move reaches the server, server-side turn validation holds) and
+GC6 (send_end_turn wired correctly) individually.
