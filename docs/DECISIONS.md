@@ -1021,3 +1021,40 @@ Security: none identified — this affects turn-taking UX correctness, not an
 exposure. But it is a P0 correctness bug for actual 2-player turn-based play
 and must be resolved before this client can be considered genuinely playable
 beyond a single-client smoke test.
+
+## 065 — Decision 064 retracted: false alarm, not a bug
+
+Decision: Decision 064's "currentPlayerId flip-flops" finding was a
+misdiagnosis. There is no bug. Retracting the P0 status; the turnState sync
+fix from Decision 063 is fully correct and needs no further work.
+
+Reason: root-caused conclusively with backend-side diagnostic logging
+(temporarily added to `GameRoom.ts` at the exact two `turnState.currentPlayerId`
+write sites — `startMatch()` and `advanceTurn()` — then removed once the
+question was answered) correlated against client-side timestamps, across two
+test scenarios:
+- Two clients connecting and only OBSERVING (no move/end_turn actions): the
+  backend log showed exactly one `startMatch()` call, one assignment, zero
+  `advanceTurn()` calls; both clients showed a perfectly stable
+  `current_player_id` for the full 8-second window. No oscillation.
+- Two clients connecting and immediately acting (move + end_turn) the instant
+  each one saw it was their own turn, on a 1-second poll with only a 0.5s
+  pause between move and end_turn: the backend log showed `advanceTurn()`
+  legitimately alternating between the two players 10 times (5 full round
+  trips) in ~12 seconds. Both clients' observed `current_player_id` matched
+  this exact sequence in lockstep, in the correct order, every time.
+
+What Decision 064 actually observed was real, fast, legitimate turn-cycling —
+both test clients react to "it's my turn" with zero artificial pacing, so a
+match can race through many real turns in seconds when both sides always
+act immediately. That is not a symptom worth flagging; it is the system
+working exactly as designed, just exercised faster than a human would ever
+play. Decision 063's fix (Dictionary-based shared closure state) is
+confirmed correct and sufficient — no further turnState work is needed.
+
+The diagnostic logging added to `GameRoom.ts` and `network_manager.gd` for
+this investigation was removed after use; both files are back to their
+Decision 063 state. The Docker image was rebuilt and the container restarted
+to match.
+Security: none — this entry only corrects a documentation/diagnosis error,
+no code changed as a result.

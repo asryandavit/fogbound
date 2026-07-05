@@ -280,7 +280,7 @@ Playable Milestone reached — GC1-GC7 complete.
 
 ---
 
-### Playable Milestone (GC1–GC7 complete, scene assembled, one P0 bug open)
+### Playable Milestone (GC1–GC7 complete, scene assembled) ✅ (2026-07-05)
 Gray-box board, 2-player match playable end to end on Godot:
 - Both players join room; explorers appear and move; fog reveals
 - Treasure collected and scored; win condition triggers
@@ -303,25 +303,18 @@ re-fires once registered (the object is mutated in place, never reassigned),
 the object afterward returns stale/null data, and (3) GDScript lambdas capture
 outer local variables BY VALUE, not by reference — a general language gotcha,
 not Colyseus-specific. Fixed with a Dictionary (reference type) to share
-mutable state across the field-level closures. Confirmed live in a room with
-already-accumulated players: both clients agree on the same current_player_id
-regardless of which one created the room.
+mutable state across the field-level closures.
 
-**P0 OPEN ISSUE — see Decision 064**: re-testing with a freshly-restarted
-backend (no accumulated room state) and two clients joining ~1s apart —
-i.e. the moment a match genuinely transitions from waiting to in_progress —
-surfaced `current_player_id` rapidly flip-flopping between both players' IDs
-on both clients, starting before either client sent any move/end_turn action.
-Not yet root-caused: could be a backend bug or a beta-SDK decode issue under
-the room's 50ms patch rate. This must be resolved before the client is
-genuinely playable for real turn-taking, not just a connectivity smoke test.
-
-Not yet done: a real 2-client test of the full move → end_turn → turn-advances
-round trip (attempted; blocked by the long-lived dev room's turnState being
-stuck on a stale player from an earlier test session — room-state accumulation
-from a full day of iterative testing, not a new bug). The current_player_id
-sync fix itself is fully confirmed; send_move and send_end_turn each already
-had their own live confirmations individually (GC5, GC6).
+Full move → end_turn → turn-advances round trip confirmed live with a
+freshly-restarted backend and two real concurrent clients: 5 complete turn
+cycles back and forth between both players in ~12 seconds, with backend-side
+diagnostic logging (added temporarily, then removed — see Decision 065)
+confirming every `advanceTurn()` call and client-observed `current_player_id`
+matched in exact lockstep, in the correct order, every time. An initial
+re-test also surfaced what looked like a P0 flip-flopping bug (Decision 064)
+— investigated and retracted (Decision 065): it was real, legitimate rapid
+turn-cycling caused by the test script reacting to "my turn" with zero
+pacing, not a defect. No known open issues remain in the GC1-GC7 client.
 
 ---
 
