@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scenes/match/match.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/match/board/BoardLayer.tscn" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scenes/match/CameraController.gd" id="5"]
 [ext_resource type="PackedScene" path="res://scenes/match/hud/Hud.tscn" id="6"]
 [ext_resource type="Script" path="res://scenes/match/InputController.gd" id="7"]
+[ext_resource type="PackedScene" path="res://scenes/match/results/Results.tscn" id="8"]
 
 [node name="Match" type="Node"]
 script = ExtResource("1")
@@ -27,3 +28,5 @@ current = true
 
 [node name="InputController" type="Node" parent="."]
 script = ExtResource("7")
+
+[node name="Results" parent="." instance=ExtResource("8")]

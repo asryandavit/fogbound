@@ -164,7 +164,29 @@ export function applyMove(
   };
 }
 
+/** Highest-scoring player id, deterministic first-wins tiebreak. Null if no
+ * players. Shared by the turn-limit and all-treasure end conditions. */
+function scoreLeader(state: GameState): string | null {
+  let winner: string | null = null;
+  let best = -1;
+  for (const [id, player] of state.players) {
+    if (player.score > best) {
+      best = player.score;
+      winner = id;
+    }
+  }
+  return winner;
+}
+
 export function checkWinCondition(state: GameState): string | null {
+  // Turn/time limit (GDD "time limit runs out") — checked first so it acts as a
+  // universal backstop: a match ALWAYS terminates once the cap is hit, whatever
+  // the configured win condition, with the score leader winning. Guards against
+  // stalls where sparse treasure is never collected.
+  if (state.maxTurns != null && state.maxTurns > 0 && state.turn.turnNumber >= state.maxTurns) {
+    return scoreLeader(state);
+  }
+
   if (state.winCondition === 'score_target' && state.scoreTarget != null) {
     let topPlayerId: string | null = null;
     let topScore = 0;
@@ -190,15 +212,7 @@ export function checkWinCondition(state: GameState): string | null {
     );
 
     if (!anyTileHasTreasure && !anyExplorerHasTreasure) {
-      let winner: string | null = null;
-      let best = -1;
-      for (const [id, player] of state.players) {
-        if (player.score > best) {
-          best = player.score;
-          winner = id;
-        }
-      }
-      return winner;
+      return scoreLeader(state);
     }
   }
 

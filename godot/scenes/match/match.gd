@@ -4,4 +4,7 @@ extends Node
 # composition root.
 
 func _ready() -> void:
-    NetworkManager.connect_to_match()
+    # Connect with the mode chosen in the main menu (carried by GameFlow across
+    # the scene change). Connecting here — after all renderers exist — keeps the
+    # "scene present, THEN connect" ordering the client has always relied on.
+    NetworkManager.connect_to_match(GameFlow.join_options())

@@ -15,16 +15,30 @@ const EXPLORERS_PER_PLAYER: Record<number, number> = {
   15: 3, 17: 3,
 };
 const BOT_THINK_MS = 900;
+// Universal safety cap so a match always terminates (GDD "time limit runs
+// out"): if turnNumber reaches this, the score leader wins. Generous enough
+// that an actively-played match ends on treasure/score first; this only bites
+// worst-case stalls (e.g. all-bot idle play leaving scattered treasure).
+const DEFAULT_MAX_TURNS = 300;
 
 export class GameRoom extends Room<{ state: FogboundState }> {
   private readonly sessionToPlayerId = new Map<string, string>();
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
 
   onCreate(options: any) {
+    // Two-player game: cap real client connections at 2 so matchmaking
+    // (join_or_create for "vs Player") never over-fills a room. A synthetic
+    // bot is NOT a client connection, so a solo-bot room shows 1/2 here and
+    // is additionally lock()ed on bot add (see onJoin) to keep matchmaking
+    // from dropping a second human into it.
+    this.maxClients = 2;
+
     this.state = new FogboundState();
     this.state.matchId = options.matchId || `match_${Date.now()}`;
     this.state.winCondition = options.winCondition || 'all_treasure';
     this.state.turnTimerSeconds = options.turnTimerSeconds || 60;
+    // ?? not ||: an explicit maxTurns of 0 (opt-in unlimited) is honored.
+    this.state.maxTurns = options.maxTurns ?? DEFAULT_MAX_TURNS;
     this.setPatchRate(50);
 
     const rows: number = options.gridRows || 13;
@@ -50,6 +64,10 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     // for a second human — otherwise there is no way to play alone.
     if (options.vsBot && this.state.players.size === 1) {
       this.addPlayer(`bot_${playerId}`, 'Bot', true);
+      // Lock the room so join_or_create ("vs Player") from another human is
+      // never matched into this solo-vs-bot match (the bot isn't a client, so
+      // without this the room would look half-empty to matchmaking).
+      this.lock();
       console.log(`Bot opponent added for solo match: ${this.state.matchId}`);
     }
 
@@ -324,6 +342,7 @@ export class GameRoom extends Room<{ state: FogboundState }> {
         phase: this.state.turnState.phase as GameState['turn']['phase'],
       },
       winCondition: this.state.winCondition as GameState['winCondition'],
+      maxTurns: this.state.maxTurns,
     };
   }
 

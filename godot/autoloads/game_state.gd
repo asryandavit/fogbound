@@ -60,3 +60,21 @@ func mark_initialized() -> void:
 
 func end_match(winner_id: String) -> void:
     match_ended.emit(winner_id)
+
+## Clears all state back to a fresh, pre-match condition. Called directly by
+## network_manager.connect_to_match at the start of every new connection so a
+## "Play Again" / new match never inherits the previous match's tiles,
+## explorers, players, or turn — this is an autoload, so it persists across
+## scene changes and would otherwise carry stale data into the next match.
+## (Called directly rather than via a StateMapper helper because a static
+## StateMapper method routing here was observed to no-op in this Godot build.)
+## Emits no signals: it runs between matches while the old Match scene has
+## been freed and the new one hasn't yet subscribed.
+func reset() -> void:
+    tiles.clear()
+    explorers.clear()
+    players.clear()
+    current_player_id = ""
+    turn_number = 0
+    phase = ""
+    is_initialized = false

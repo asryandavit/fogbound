@@ -204,9 +204,19 @@ Base appearance depends on map theme:
 
 Win conditions are **configurable per map**:
 
-- Time limit runs out
-- All treasure has been carried to bases
-- A player reaches a points target that others cannot beat
+- **Time limit runs out** — implemented as a turn cap (`maxTurns`, default 300;
+  0 = unlimited). When `turnNumber` reaches the cap the match ends and the
+  score leader wins (deterministic tiebreak). Turn-based rather than wall-clock
+  so it is fair and reproducible. This ALSO acts as a universal termination
+  backstop: it is checked before any other win condition, so a match can never
+  run forever even under `all_treasure` if treasure is left uncollected
+  (Decision 073).
+- **All treasure has been carried to bases** — implemented (`all_treasure`, the
+  default). Ends when no tile holds treasure and no explorer is carrying any;
+  highest banked score wins.
+- **A player reaches a points target that others cannot beat** — rule defined
+  (`score_target` in `checkWinCondition`), but the `scoreTarget` value is not
+  yet wired through the schema/room, so it is not selectable in a live match yet.
 
 ---
 

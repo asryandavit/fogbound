@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Fogbound"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/menu/MainMenu.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 
 [autoload]
@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.6", "Mobile")
 Config="*res://autoloads/config.gd"
 NetworkManager="*res://autoloads/network_manager.gd"
 GameState="*res://autoloads/game_state.gd"
+GameFlow="*res://autoloads/game_flow.gd"
 
 [editor_plugins]
 

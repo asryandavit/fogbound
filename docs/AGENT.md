@@ -403,6 +403,79 @@ pattern).
 
 ---
 
+### Game Flow: Menus + Results + Matchmaking Isolation + Turn Limit ✅ DONE (2026-07-06)
+
+Context: with the AI opponent done, the keystone gap to a genuinely "finished,
+playable" v1 was the game-flow layer — the app hard-launched into a solo bot
+match with no menu, no way to choose an opponent, no results screen (the
+server's match_ended broadcast was invisible), and no Play Again. Also found
+and fixed along the way: matches could never end, and a Play-Again reconnect
+leaked stale players.
+
+Files (client):
+- godot/scenes/menu/MainMenu.tscn + main_menu.gd (new) — run/main_scene; bare
+  Play vs Bot / Play vs Player / Quit (Decision 058 gray-box)
+- godot/scenes/match/results/Results.tscn + results.gd (new) — win/lose +
+  final scores overlay on GameState.match_ended; Play Again / Main Menu
+- godot/autoloads/game_flow.gd (new, 4th autoload) — scene transitions +
+  carries selected mode across change_scene_to_file
+- godot/autoloads/network_manager.gd — create vs join_or_create by mode;
+  dropped the hardcoded vsBot default; GameState.reset() on connect; routes
+  match_ended → StateMapper → GameState; full room-signal teardown + client
+  null on disconnect; null-guard on late state_changed
+- godot/autoloads/game_state.gd — reset(); end_match() already present
+- godot/scripts/network/state_mapper.gd — apply_match_ended (bridge)
+- godot/scenes/match/Match.tscn + match.gd — Results wired in; connect via
+  GameFlow.join_options()
+- godot/scenes/Main.tscn (deleted — orphaned wrapper)
+
+Files (server):
+- backend/src/colyseus/rooms/GameRoom.ts — maxClients=2 + lock() on solo bot;
+  DEFAULT_MAX_TURNS=300 + maxTurns from options; toPureState passes maxTurns
+- backend/src/colyseus/model/GameRules.ts — turn-limit branch in
+  checkWinCondition (score leader wins), scoreLeader helper
+- backend/src/colyseus/model/GameState.ts — maxTurns? on pure GameState
+- backend/src/colyseus/schemas/FogboundState.ts — maxTurns field
+
+Two real bugs found and fixed during live verification (Decisions 071-073):
+1. Play-Again reconnect merged the OLD room's players into the new match (4
+   players not 2) — two causes: disconnect only nulled _room (old room signals
+   stayed live) AND the reset was routed through a StateMapper static helper
+   that silently no-ops in this Godot build (its body never ran; sibling
+   statics run fine — Decision 072). Fixed with full signal teardown +
+   client null, and by calling GameState.reset() directly.
+2. An all_treasure match could never end — sparse fog + few explorers leave
+   scattered treasure uncollected forever (3/5 still on board after 154
+   auto-played turns). Implemented the GDD's "time limit runs out" win
+   condition as a turn cap (maxTurns), which also guarantees termination
+   (Decision 073).
+
+Tests: `cd backend && npx jest` → 61/61 (58 + 3 new turn-limit tests in
+GameRules.spec). `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gcN`
+for N=2..8 → 33/33 (new tests/gc8/test_game_flow.gd: 8 — reset, match_ended
+bridge, Results.outcome_text/format_scores, GameFlow.join_options).
+
+Live-verified against a rebuilt fogbound_backend with a headless 3-phase
+harness (written, run, deleted — never committed): (1) vs Bot uses create() →
+fresh room with 1 human + 1 bot + treasure, 49 tiles for 7×7; (2) Play Again
+disconnect+reconnect → GameState reset to exactly 2 fresh players (no leak),
+new player id; (3) a real solo match auto-played by the server to a genuine
+turn-limit win → match_ended delivered end to end → correct You Win!/You Lose
++ 2-player scores. err=0, no crashes.
+
+NOT done here (still gray-box, no visual verification possible headlessly):
+the actual look/feel of the menu and results screens on a device — needs a
+human eye. Everything else in the flow is logic-verified.
+
+Documentation: updated docs/DECISIONS.md (070 flow layer, 071 room
+lifecycle/matchmaking isolation, 072 match_ended bridge + reset + the Godot
+static no-op, 073 turn-limit win condition); docs/GDD.md (Win Conditions —
+turn-limit implemented, all_treasure implemented, score_target rule-only);
+docs/ARCHITECTURE.md (Flow layer row, Scene Flow section, static-no-op risk
+row); docs/GODOT_CLIENT.md (folder structure, 4th autoload, Game Flow section).
+
+---
+
 ### Godot↔Colyseus Spike ✅ (2026-06-16, branch: spike/godot-colyseus)
 
 **Verdict: Godot 4 CAN replace the Unity client.**
@@ -476,9 +549,12 @@ Key GDScript 4 constraints discovered:
 - ~~MCTS bot AI inside Colyseus GameRoom~~ ✅ done (2026-07-06, root-level
   UCB1 Monte Carlo — see above); treasure spawn + win condition wiring
   done alongside it as prerequisites
-- Menus (main menu, lobby, results screen) + real matchmaking via NestJS —
-  currently the client always auto-joins vsBot on launch (temporary default
-  in network_manager.gd), no way to choose PvP vs bot or find a real match
+- ~~Menus (main menu, results screen) + choose vs Bot / vs Player~~ ✅ done
+  (2026-07-06 — MainMenu + Results + GameFlow; see above). Basic PvP works via
+  Colyseus join_or_create (2 humans picking "Play vs Player" get matched).
+  STILL TODO: a real lobby / NestJS-backed matchmaking (skill/region/party),
+  a "searching for opponent…" state + timeout when no second human appears,
+  and per-map win-condition/turn-limit selection in the UI
 - More tile content beyond coins/shields (sword per Decision 058, discovery
   popup/Tilepedia, water terrain wired into board generation)
 - Player accounts wired to the Godot client (NestJS auth exists — Google/

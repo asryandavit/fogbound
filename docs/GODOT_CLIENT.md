@@ -34,13 +34,15 @@ godot/
 ├── autoloads/
 │   ├── config.gd            # env + server URL, NO secrets
 │   ├── network_manager.gd   # Colyseus connection (ONLY Colyseus.* importer)
-│   └── game_state.gd        # state store + signals (no Colyseus import)
+│   ├── game_state.gd        # state store + signals (no Colyseus import)
+│   └── game_flow.gd         # scene transitions + selected match mode (no SDK)
 ├── scenes/
 │   ├── match/
 │   │   ├── board/           # BoardLayer.tscn, FogLayer.tscn (TileMapLayer)
 │   │   ├── explorers/       # Explorer.tscn + ExplorerController.gd
-│   │   └── hud/             # TopBar.tscn, ActionStrip.tscn, ExplorerMiniCard.tscn
-│   ├── menu/                # MainMenu.tscn, Settings.tscn, Lobby.tscn
+│   │   ├── hud/             # Hud.tscn (turn banner, End Turn, Undo)
+│   │   └── results/         # Results.tscn — win/lose + scores overlay (Decision 070)
+│   ├── menu/                # MainMenu.tscn (run/main_scene) — vs Bot / vs Player / Quit
 │   └── shared/              # Reusable UI components
 ├── scripts/
 │   └── network/
@@ -66,8 +68,29 @@ Register in Project → Project Settings → Autoload in this order (order matte
 | 1 | autoloads/config.gd | Config |
 | 2 | autoloads/network_manager.gd | NetworkManager |
 | 3 | autoloads/game_state.gd | GameState |
+| 4 | autoloads/game_flow.gd | GameFlow |
 
 config.gd must be first so NetworkManager can read the server URL at startup.
+GameFlow is last — it only calls NetworkManager (already registered) and drives
+scene transitions.
+
+## Game Flow (Decision 070/071/072)
+
+`run/main_scene` is `scenes/menu/MainMenu.tscn`, not the match. Flow:
+`MainMenu → (GameFlow.start_match) → Match.tscn → (GameState.match_ended) →
+Results overlay → (GameFlow.play_again / to_main_menu)`. `GameFlow` carries the
+chosen mode (`vs_bot`) across the `change_scene_to_file` boundary, since a
+freshly-loaded scene can't be handed args; the match connects from its own
+`_ready()` via `NetworkManager.connect_to_match(GameFlow.join_options())`.
+
+- "vs Bot" → SDK `create()` (fresh room); "vs Player" → `join_or_create()`.
+- `connect_to_match` calls `GameState.reset()` first (autoloads outlive the
+  scene — a Play Again must not inherit the prior match). Called directly, NOT
+  via a StateMapper static helper: that forwarding method was found to silently
+  no-op in this Godot build (Decision 072) while direct calls work.
+- `disconnect_from_match` disconnects all room signal handlers and nulls the
+  client, so a left room can never call back into GameState (fixed a live
+  cross-room player-merge bug, Decision 071).
 
 ---
 

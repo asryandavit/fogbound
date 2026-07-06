@@ -10,6 +10,7 @@ export class FogboundState extends Schema {
   @type('string') winnerId: string = '';
   @type('string') winCondition: string = 'all_treasure';
   @type('number') turnTimerSeconds: number = 60;
+  @type('number') maxTurns: number = 0;
   @type({ map: TileSchema }) tiles = new MapSchema<TileSchema>();
   @type({ map: ExplorerSchema }) explorers = new MapSchema<ExplorerSchema>();
   @type({ map: PlayerSchema }) players = new MapSchema<PlayerSchema>();

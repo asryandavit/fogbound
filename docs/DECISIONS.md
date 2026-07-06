@@ -1164,3 +1164,99 @@ release, the more granular (and slightly cheaper) approach could be
 reinstated — but only after empirically re-verifying it across many
 sequential updates to the same field, not just the first one, given how this
 exact mistake was made twice already (Decisions 060, 063).
+
+## 070 — Game-flow layer: MainMenu → Match → Results, driven by a GameFlow autoload
+
+Decision: added the app's front-to-back flow so the game is a real playable
+loop rather than a hard-launch into one match. New `run/main_scene` is
+`scenes/menu/MainMenu.tscn` (a gray-box Control per Decision 058: bare "Play
+vs Bot" / "Play vs Player" / "Quit" buttons, no art). A new `GameFlow`
+autoload (fourth autoload, after GameState) owns scene transitions and
+carries the selected mode across the scene change — `start_match(vs_bot)`,
+`play_again()`, `to_main_menu()`, `join_options()`. `match.gd` now connects
+with `GameFlow.join_options()` instead of a hardcoded default. A new Results
+overlay (`scenes/match/results/Results.tscn`, CanvasLayer above the HUD)
+listens for `GameState.match_ended`, shows You Win/You Lose + final scores,
+and offers Play Again / Main Menu (both routed through GameFlow). The old
+`scenes/Main.tscn` wrapper was deleted (nothing else referenced it).
+Reason: the client had every in-match renderer (GC1-GC7) but no way to
+start, choose an opponent, see that a match had ended, or play again — the
+`match_ended` broadcast wired server-side (Decision 066) was invisible with
+nothing consuming it. GameFlow carries the mode via an autoload because a
+scene loaded by `change_scene_to_file` can't be handed constructor args, and
+the match must connect from its own `_ready()` (renderers present first) to
+preserve the "scene present, THEN connect" ordering every GC task relied on.
+Security: neutral — menus/flow are pure client UI; all match authority stays
+server-side. Scene-transition code isn't headless-unit-testable, so GameFlow
+is verified live; its pure parts (Results.outcome_text/format_scores,
+join_options, GameState.reset) are unit-covered in tests/gc8.
+
+## 071 — Room lifecycle: create vs join_or_create, maxClients=2, lock, full client teardown
+
+Decision: "Play vs Bot" now calls the SDK's `create()` (a guaranteed-fresh
+room) and "Play vs Player" calls `join_or_create()` (matchmake with a second
+human) — `network_manager.connect_to_match` picks based on `join_opts.vsBot`.
+Server-side, `GameRoom` sets `maxClients = 2` and calls `this.lock()`
+immediately after adding a solo bot, so matchmaking can never drop a second
+human into a solo-vs-bot room (the bot is not a client connection, so the
+room would otherwise look half-empty). `disconnect_from_match` now disconnects
+every room signal handler it attached and nulls `_client` (not just `_room`)
+before leaving, so a left room can never call back into GameState or leak.
+Reason: before this, `connect_to_match` always used `join_or_create` and the
+room had no client cap or lock, so two humans (or a human and someone's bot
+room) could collide; and leaving only nulled `_room`, leaving the old room's
+signals live. Live testing surfaced a concrete bug from the missing teardown
+combined with Decision 072's reset issue: a "Play Again" reconnect merged the
+previous room's players into the next match (4 players instead of 2).
+Security: neutral — cap/lock are server-authoritative; no new trust boundary.
+
+## 072 — match_ended client bridge + GameState.reset on connect (and a Godot static no-op worked around)
+
+Decision: the server's `match_ended` message is routed into GameState so
+views react through `GameState.match_ended` (Decision 048), not a raw
+transport message: `network_manager._on_message_received` calls
+`StateMapper.apply_match_ended(data)` → `GameState.end_match(winnerId)`.
+And every new connection clears stale state up front by calling
+`GameState.reset()` at the top of `connect_to_match`.
+Reason + finding: GameState is an autoload that outlives the Match scene, so
+without an explicit reset a "Play Again"/new match inherits the previous
+match's tiles/explorers/players/turn. The reset was FIRST written as a
+`StateMapper.reset_state()` static helper (to preserve GameState's "only
+state_mapper writes me" invariant), but live tracing proved that specific
+static method silently no-ops in this Godot build — its body never executes
+(diagnostic prints inside it never fired, and players stayed populated),
+even though sibling statics in the same file (`apply_player_change`,
+`apply_match_ended`) run fine, and a direct `GameState.reset()` on the very
+next line clears correctly. Root cause not fully isolated (a Godot
+static-dispatch anomaly, reproduced across full `.godot` cache wipes); the
+reliable, verified workaround is to call `GameState.reset()` directly from
+the NetworkManager Node context. This is a deliberate, documented exception
+to "only state_mapper writes GameState": reset is a whole-state lifecycle op
+the transport owns, distinct from per-field translation. `StateMapper.reset_state`
+was removed as dead/broken.
+Security: neutral. Future work: if the static-dispatch anomaly is understood
+or a Godot update changes it, the helper could return — but only re-verified
+live, not assumed.
+
+## 073 — Turn/time-limit win condition (maxTurns) as a universal termination backstop
+
+Decision: implemented the GDD's "time limit runs out" win condition as a
+turn cap. `GameState` (pure) gains `maxTurns?`; `checkWinCondition` checks it
+FIRST — if `turn.turnNumber >= maxTurns (> 0)`, the match ends and the score
+leader wins (deterministic first-wins tiebreak, shared with all_treasure via
+a new `scoreLeader` helper). `FogboundState` gains `maxTurns` (0 = unlimited);
+`GameRoom.onCreate` sets it from `options.maxTurns ?? DEFAULT_MAX_TURNS`
+(300); `toPureState` passes it through. Applies regardless of the configured
+winCondition, so it's a universal backstop, not only a selectable mode.
+Reason: found live — an `all_treasure` solo match can effectively never end.
+With only 1-2 explorers and sparse fog exploration, the bots leave a few
+scattered treasures uncollected forever (observed: 3 of 5 still on the board
+after 154 auto-played turns), so the player would never reach the results
+screen. A finished game must always terminate. The GDD already lists "time
+limit runs out" as a designed win condition; this implements it (turn-based,
+deterministic — better than wall-clock for fairness/testability) and doubles
+as the safety net. Verified: with `maxTurns` set small, a real match reaches
+`match_ended` end-to-end (server broadcast → client bridge → results). Unit
+tests cover cap-hit-with-treasure-remaining, below-cap, and 0=unlimited.
+Security: neutral — server-authoritative; the cap only affects when the
+server declares a winner.

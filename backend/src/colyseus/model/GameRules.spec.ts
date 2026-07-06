@@ -255,4 +255,42 @@ describe('checkWinCondition', () => {
     const state = makeState({ winCondition: 'score_target', scoreTarget: 100 });
     expect(checkWinCondition(state)).toBeNull();
   });
+
+  it('ends by turn limit with the score leader even while treasure remains', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(2, 2), makeTile(2, 2, { treasureValue: 5 })); // treasure still unclaimed
+    const players = new Map<string, PlayerState>([
+      ['p1', makePlayer('p1', 0, 0, 0, { score: 2 })],
+      ['p2', makePlayer('p2', 1, 0, 4, { score: 7 })],
+    ]);
+    const state = makeState({
+      tiles,
+      players,
+      maxTurns: 50,
+      turn: { currentPlayerId: 'p1', turnNumber: 50, phase: 'move' },
+    });
+    expect(checkWinCondition(state)).toBe('p2');
+  });
+
+  it('does not trigger the turn limit before the cap is reached', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(2, 2), makeTile(2, 2, { treasureValue: 5 }));
+    const state = makeState({
+      tiles,
+      maxTurns: 50,
+      turn: { currentPlayerId: 'p1', turnNumber: 49, phase: 'move' },
+    });
+    expect(checkWinCondition(state)).toBeNull();
+  });
+
+  it('treats maxTurns of 0 as no cap (never ends on turns alone)', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(2, 2), makeTile(2, 2, { treasureValue: 5 }));
+    const state = makeState({
+      tiles,
+      maxTurns: 0,
+      turn: { currentPlayerId: 'p1', turnNumber: 9999, phase: 'move' },
+    });
+    expect(checkWinCondition(state)).toBeNull();
+  });
 });

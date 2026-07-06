@@ -37,6 +37,17 @@ func connect_to_match(options: Dictionary = {}) -> void:
 		return
 
 	_set_state(State.CONNECTING)
+
+	# Fresh slate. GameState is an autoload that outlives the Match scene, so a
+	# "Play Again" or a brand-new match would otherwise inherit the previous
+	# match's tiles/explorers/players/turn. Called DIRECTLY here, not via a
+	# StateMapper static helper: routing reset through StateMapper.reset_state()
+	# was observed to silently no-op in this Godot build (the static method's
+	# body never executed, though sibling statics like apply_player_change run
+	# fine), while this direct call from the NetworkManager Node context clears
+	# reliably. Confirmed live — see Decision on the game-flow layer.
+	GameState.reset()
+
 	_client = Colyseus.Client.new(Config.server_url)
 
 	# AUTH SEAM (Decision 046): when JWT auth is built, inject the token here
@@ -50,17 +61,21 @@ func connect_to_match(options: Dictionary = {}) -> void:
 	var join_opts := {
 		"playerId": "player_%d" % Time.get_ticks_msec(),
 		"username": "Player",
-		# No menu/matchmaking flow exists yet — default to a bot opponent so
-		# opening the game solo is actually playable. Remove this default
-		# once a real "vs AI" / "find match" choice is built.
-		"vsBot": true,
 	}
-	join_opts.merge(options, true)  # caller options override defaults
+	join_opts.merge(options, true)  # caller options (incl. vsBot) override defaults
 	local_player_id = join_opts["playerId"]
 
-	_room = _client.join_or_create("fogbound_room", join_opts)
+	# "vs Bot" must get a guaranteed-fresh room (create) so matchmaking can
+	# never drop us into another human's game; "vs Player" uses join_or_create
+	# to be matched with a second human. The server reads join_opts.vsBot to
+	# decide whether to spawn a bot opponent and lock the room (GameRoom.onJoin).
+	var vs_bot: bool = bool(join_opts.get("vsBot", false))
+	if vs_bot:
+		_room = _client.create("fogbound_room", join_opts)
+	else:
+		_room = _client.join_or_create("fogbound_room", join_opts)
 	if not _room:
-		push_error("NetworkManager: join_or_create returned null — GDExtension not loaded")
+		push_error("NetworkManager: room creation returned null — GDExtension not loaded")
 		_set_state(State.ERROR)
 		return
 
@@ -95,12 +110,34 @@ func send_end_turn() -> void:
 		return
 	_room.send_message("end_turn", {})
 
-## Cleanly leave the current room.
+## Cleanly leave the current room. Tears down our signal handlers FIRST so a
+## lingering room can never call back into GameState after we've moved on —
+## live testing showed an old room merging its players into the next match
+## when only _room was nulled (its state_changed stayed connected).
 func disconnect_from_match() -> void:
-	if _room and _room.connected:
-		_room.leave()
+	if _room:
+		_disconnect_room_signals(_room)
+		if _room.connected:
+			_room.leave()
 	_room = null
+	_client = null  # drop the old Client so it (and its room/socket) can free
 	_set_state(State.DISCONNECTED)
+
+## Disconnect every handler we attached in connect_to_match. Guarded by
+## is_connected so a partially-set-up or already-torn-down room is safe.
+func _disconnect_room_signals(room) -> void:
+	var handlers := {
+		"joined": _on_joined,
+		"error": _on_error,
+		"left": _on_left,
+		"dropped": _on_dropped,
+		"reconnected": _on_reconnected,
+		"message_received": _on_message_received,
+		"state_changed": _on_state_changed,
+	}
+	for sig_name in handlers:
+		if room.is_connected(sig_name, handlers[sig_name]):
+			room.disconnect(sig_name, handlers[sig_name])
 
 ## True while a room connection is live.
 var is_connected: bool:
@@ -150,6 +187,11 @@ func _on_message_received(type: Variant, data: Variant) -> void:
 	var data_dict: Dictionary = data if data is Dictionary else {}
 	# SECURITY: log type only — never log data content (may contain player info)
 	print("[NetworkManager] message type=%s" % type_str)
+	# Route the authoritative match-over event into GameState via StateMapper
+	# (the only other file allowed to read raw server shapes) so views react
+	# through GameState.match_ended, not a raw transport message (Decision 048).
+	if type_str == "match_ended":
+		StateMapper.apply_match_ended(data_dict)
 	server_message.emit(type_str, data_dict)
 
 # ─── Private: state observation ───────────────────────────────────────────────
@@ -158,6 +200,8 @@ func _on_state_changed() -> void:
 	# Reliable baseline: fires on every server delta (confirmed live across
 	# every task this project has built). This is now the ONLY state
 	# observation mechanism — see _setup_state_callbacks for why.
+	if _room == null:
+		return  # a late delta from a room we just left (disconnect nulls _room)
 	var state = _room.get_state()
 	if state != null:
 		_log_state_counts(state)

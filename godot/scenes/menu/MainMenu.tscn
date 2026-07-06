@@ -1,0 +1,40 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/menu/main_menu.gd" id="1"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="CenterContainer/VBox"]
+layout_mode = 2
+text = "FOGBOUND"
+horizontal_alignment = 1
+
+[node name="PlayVsBot" type="Button" parent="CenterContainer/VBox"]
+custom_minimum_size = Vector2(220, 56)
+layout_mode = 2
+text = "Play vs Bot"
+
+[node name="PlayVsPlayer" type="Button" parent="CenterContainer/VBox"]
+custom_minimum_size = Vector2(220, 56)
+layout_mode = 2
+text = "Play vs Player"
+
+[node name="Quit" type="Button" parent="CenterContainer/VBox"]
+custom_minimum_size = Vector2(220, 56)
+layout_mode = 2
+text = "Quit"

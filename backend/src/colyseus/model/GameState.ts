@@ -53,6 +53,11 @@ export interface GameState {
   readonly turn: TurnState;
   readonly winCondition: 'all_treasure' | 'time_limit' | 'score_target';
   readonly scoreTarget?: number;
+  /** Hard cap on turnNumber. When turn.turnNumber reaches it, the match ends
+   * and the score leader wins — the GDD "time limit runs out" condition, and a
+   * universal backstop so a match can never run forever (e.g. scattered
+   * treasure the bots never reach). 0 / undefined = no cap. */
+  readonly maxTurns?: number;
 }
 
 export function tileKey(x: number, y: number): string {

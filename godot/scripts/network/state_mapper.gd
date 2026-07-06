@@ -83,3 +83,10 @@ static func apply_turn_change(turn_data) -> void:
 
 static func finalize_initialization() -> void:
     GameState.mark_initialized()
+
+## Routes the server's "match_ended" message (raw shape) into GameState.
+## Kept here, not in network_manager.gd, because StateMapper is the only file
+## besides network_manager permitted to consume raw server data shapes
+## (Decision 043); GameState.match_ended is the view-facing signal (Decision 048).
+static func apply_match_ended(data) -> void:
+    GameState.end_match(str(_field(data, "winnerId", "")))
