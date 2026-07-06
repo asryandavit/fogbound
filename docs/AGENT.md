@@ -318,6 +318,91 @@ pacing, not a defect. No known open issues remain in the GC1-GC7 client.
 
 ---
 
+### AI Opponent + Treasure/Win Condition + Critical Sync Fix ✅ DONE (2026-07-06)
+
+Context: after the Playable Milestone, the user asked for a plain-language
+status check on what a genuinely "finished" first version still needs, then
+chose **AI opponent first** (over menus/matchmaking or more tile content)
+and **placeholder assets for now** (over waiting on art). This task covers
+the AI opponent plus two prerequisites it exposed as missing: the server
+spawned zero treasure and never checked the win condition, so there was
+nothing to actually play for and no way for a match to end.
+
+Files:
+- backend/src/colyseus/model/BoardSetup.ts (new) — pure, seedable
+  `placeTreasure(rows, cols, rng)`: coins (12%, value 1-3) and shields (3%),
+  never on the start rows (y=0 / y=rows-1, per GDD)
+- backend/src/colyseus/model/BotAI.ts (new) — `chooseBotAction(state, playerId, rng)`:
+  root-level UCB1 Monte Carlo over the small per-turn action set (one
+  explorer move or pass, Decision 054), self-play rollout with a fast
+  heuristic policy, per-ply discounted cumulative reward
+- backend/src/colyseus/model/BoardSetup.spec.ts, BotAI.spec.ts (new)
+- backend/src/colyseus/rooms/GameRoom.ts (edited) — initializeBoard() calls
+  placeTreasure(); new checkForWinner() calls checkWinCondition() and
+  broadcasts match_ended; new addPlayer() helper shared by real joins and a
+  new vsBot join option (`options.vsBot: true` + only 1 human → spawns a
+  synthetic bot player, starts immediately); new shared playAutoTurn()
+  used by both bot-turn advancement and turn-timer-expiry auto-move
+  (GDD: "auto-selects the safest legal move")
+- backend/src/colyseus/schemas/FogboundState.ts (edited) — added `winnerId`
+- godot/autoloads/network_manager.gd (edited) — see sync fix below; also
+  default join options now include `vsBot: true` (temporary — remove once
+  a real menu/matchmaking choice exists)
+- godot/scripts/network/state_mapper.gd (edited) — dead code from the
+  investigation removed; original apply_*_change functions unchanged,
+  now always called with freshly-read data (safe, see below)
+
+**Bot AI design note:** an early version passed 3/5 tests but failed to
+prefer grabbing an adjacent coin or attacking an undefended treasure-carrier
+*immediately* over doing it a turn or two later — with a long, flat-reward
+rollout horizon the bot was provably indifferent to timing. Fixed by
+discounting rollout reward per ply (`PER_PLY_DISCOUNT = 0.9`) so earlier
+value capture always scores higher than later capture of the same value.
+This is a real design improvement, not a test-passing hack — verified
+stable across 5 repeated test runs.
+
+**Critical bug found and fixed (bigger than the AI feature itself):**
+live-testing the bot exposed that the Godot client's GameState froze at its
+initial snapshot — explorer positions, turn number, everything — even
+though the backend was genuinely moving pieces every turn (confirmed via
+temporary backend-side logging). Root cause, confirmed with a temporary
+debug print inside a `listen()` callback: **per-field `listen()` registered
+on a MapSchema collection item (tile/explorer/player, obtained via
+`on_add`) never fires again after its initial registration** in Colyseus
+GDScript SDK 0.17.11 — zero firings recorded across ten real server-side
+moves. This directly contradicts Decision 063's claim that collection items
+are more reliable than root REF fields; that claim was only ever tested
+against a single update. Fixed by abandoning `Colyseus.Callbacks`
+(`on_add`/`on_remove`/`listen`) entirely — `network_manager.gd` now just
+re-syncs the ENTIRE state fresh on every `room.state_changed` signal (the
+one mechanism proven reliable all project long). See Decision 069,
+docs/ARCHITECTURE.md, docs/GODOT_CLIENT.md for full detail.
+
+Tests: `cd backend && npx jest` → 58/58 passed (5 suites, all backend model
++ room tests, including the new BoardSetup.spec.ts and BotAI.spec.ts).
+`godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/gcN -gexit`
+for N=2..7 → 25/25 passed, 0 failures, 0 errors (no regressions from the
+sync redesign — gc2's apply_*_change tests still cover state_mapper.gd
+directly).
+
+Done: verified live against a rebuilt fogbound_backend container with a
+real two-turn-cycle-plus bot match: treasure tiles visibly present on
+join, a solo client joined with vsBot and played against a bot opponent,
+turn number advanced 1→15 and explorer positions/coin counts updated in
+lockstep with real backend state on every turn, no crashes or errors.
+
+Documentation: updated docs/DECISIONS.md (added entries 066-069: treasure
+spawn + win condition wiring, bot AI architecture, vsBot join option, and
+the state-sync redesign that corrects Decision 063); updated
+docs/ARCHITECTURE.md (new "State Observation: full re-sync on
+state_changed" section + Known Beta-SDK Risks table updated); updated
+docs/GODOT_CLIENT.md (replaced the obsolete Decision 044 Callbacks-pattern
+section with the current state_changed-based approach, since the old code
+example would mislead a future reader into reimplementing the broken
+pattern).
+
+---
+
 ### Godot↔Colyseus Spike ✅ (2026-06-16, branch: spike/godot-colyseus)
 
 **Verdict: Godot 4 CAN replace the Unity client.**
@@ -388,8 +473,16 @@ Key GDScript 4 constraints discovered:
 
 ### Next After This Sprint
 
-- Tile art + animation pass + SFX (weeks 8–14)
-- Discovery popup + Tilepedia (weeks 10–12)
-- MCTS bot AI inside Colyseus GameRoom (weeks 12–16)
-- Matchmaking via NestJS (weeks 14–18)
-- Closed beta + polish + store submission (weeks 18–24)
+- ~~MCTS bot AI inside Colyseus GameRoom~~ ✅ done (2026-07-06, root-level
+  UCB1 Monte Carlo — see above); treasure spawn + win condition wiring
+  done alongside it as prerequisites
+- Menus (main menu, lobby, results screen) + real matchmaking via NestJS —
+  currently the client always auto-joins vsBot on launch (temporary default
+  in network_manager.gd), no way to choose PvP vs bot or find a real match
+- More tile content beyond coins/shields (sword per Decision 058, discovery
+  popup/Tilepedia, water terrain wired into board generation)
+- Player accounts wired to the Godot client (NestJS auth exists — Google/
+  Apple/JWT — but the client doesn't use it yet; every match is anonymous)
+- Tile art + animation pass + SFX (placeholder procedural swatches only,
+  per user's explicit "placeholder assets for now" decision)
+- Closed beta + polish + store submission

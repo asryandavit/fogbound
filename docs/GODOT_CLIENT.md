@@ -174,75 +174,83 @@ subclasses (above) was not empirically tested in GC1 and requires integration te
 
 ---
 
-## State Callback Consumption Pattern (Decision 044)
+## State Observation Pattern (Decision 069 — supersedes Decision 044)
 
-All state listening goes through `Colyseus.Callbacks.of(room)` in network_manager.gd.
-Do not poll `get_state()` in `_process()`.
+**The `Colyseus.Callbacks` approach below this line's history (`on_add` /
+`on_remove` / `listen`) is NOT what the client actually uses — do not
+reimplement it.** It was the original GC2 design and looked correct in
+testing, but was proven broken during live AI-opponent testing: per-field
+`listen()` registered on a MapSchema collection item (tiles/explorers/
+players, obtained via `on_add`) never fires again after its initial
+registration in SDK 0.17.11. This wasn't caught earlier because every prior
+test only ever exercised a single update to a given field; a real multi-move
+match (many sequential updates to the same explorer's x/y) is what exposed
+it — confirmed by a debug print inside the listen callback that fired zero
+times across ten real server-side moves, while the backend's own logs proved
+the moves were happening.
+
+**What the client actually does:** `network_manager.gd` connects to
+`room.state_changed` (a plain signal, not a Callbacks object) — confirmed
+reliable across every task built in this project — and on every firing,
+re-reads the ENTIRE state fresh and pushes every tile/explorer/player/
+turnState through `state_mapper.gd` unconditionally:
 
 ```gdscript
-# Inside network_manager.gd, called after room.joined fires:
-func _setup_callbacks(room) -> void:
-    var state = room.get_state()   # Dictionary (no set_state_type) or Schema instance
-    var cb := Colyseus.Callbacks.of(room)
+# Inside network_manager.gd:
+func _setup_state_callbacks() -> void:
+    var state = _room.get_state()
+    _sync_all_from_state(state)   # initial snapshot
 
-    # Tiles: on_add back-fills all existing tiles first, then fires for new additions.
-    # Attach nested listeners HERE — on_change does not cascade to nested schemas.
-    cb.on_add(state, "tiles", func(tile, coord_key: String) -> void:
-        cb.listen(tile, "isRevealed", func(_new_val, _old_val) -> void:
-            state_mapper.apply_tile_change(coord_key, tile)
-        )
-        state_mapper.apply_tile_change(coord_key, tile)
-    )
+func _on_state_changed() -> void:
+    var state = _room.get_state()
+    if state != null:
+        _sync_all_from_state(state)
 
-    # Explorers
-    cb.on_add(state, "explorers", func(explorer, id: String) -> void:
-        cb.listen(explorer, "x", func(_n, _o) -> void: state_mapper.apply_explorer_change(id, explorer))
-        cb.listen(explorer, "y", func(_n, _o) -> void: state_mapper.apply_explorer_change(id, explorer))
-        state_mapper.apply_explorer_change(id, explorer)
-    )
-    cb.on_remove(state, "explorers", func(_explorer, id: String) -> void:
-        state_mapper.remove_explorer(id)
-    )
+func _sync_all_from_state(state) -> void:
+    var tiles = state.get("tiles")
+    if tiles is Dictionary:
+        for key in tiles.keys():
+            StateMapper.apply_tile_change(key, tiles[key])
 
-    # Turn state (nested REF schema on root). listen(), NOT on_change("turnState", ...) —
-    # the field-keyed on_change() overload crashes the native extension on a root
-    # REF field (confirmed in GC2, see Decision 060). listen() is the safe equivalent.
-    cb.listen(state, "turnState", func(turn_state, _old_val) -> void:
-        state_mapper.apply_turn_change(turn_state)
-    )
+    var explorers = state.get("explorers")
+    if explorers is Dictionary:
+        for existing_id in GameState.explorers.keys():
+            if not explorers.has(existing_id):
+                StateMapper.remove_explorer(existing_id)
+        for key in explorers.keys():
+            StateMapper.apply_explorer_change(key, explorers[key])
 
-    # Signal game_state that initial hydration is complete.
-    # NOTE: the generic on_change(state, callback) form invokes its callback with
-    # ZERO arguments, not one — func(_changes) throws at runtime (Decision 060).
-    cb.on_change(state, func() -> void:
-        if not GameState.initialized:
-            state_mapper.finalize_initialization()
-    )
+    var players = state.get("players")
+    if players is Dictionary:
+        for key in players.keys():
+            StateMapper.apply_player_change(key, players[key])
+
+    var turn_state = state.get("turnState")
+    if turn_state != null:
+        StateMapper.apply_turn_change(turn_state)
+
+    if not GameState.is_initialized:
+        StateMapper.finalize_initialization()
 ```
 
-**Confirmed API (GC1 + GC2 empirical tests, SDK 0.17.11):**
-- `Colyseus.Callbacks.of(room)` — CONFIRMED working; returns a Callbacks object
-- `on_add(state, "collection_key", func(item, key))` — CONFIRMED 3-arg form
-- `on_add(room, callback)` — INVALID; room is not a valid target
-- State is empty right after `joined`; `on_add` back-fills existing items on first server patch
-- `on_remove(state, "collection_key", func(item, key))` — CONFIRMED (GC2), no issues
-- `listen(item, "field_name", func(new_val, old_val))` — CONFIRMED (GC2), safe on both
-  collection-item schemas (tile, explorer) AND root-level REF fields (turnState)
-- `on_change(state, func())` — CONFIRMED (GC2) — **zero-argument** callback, not one.
-  `func(_changes)` throws "Method expected 1 argument(s), but called with 0" at runtime.
-- `on_change(state, "field_name", func(val, key))` — **CONFIRMED BROKEN** (GC2): crashes
-  the native extension with a misaligned-pointer panic when used on a root-level Schema
-  REF field (e.g. turnState) — see Decision 060. Use `listen(state, "field_name", ...)`
-  instead; same effective behavior, does not crash.
+No `Colyseus.Callbacks.of(room)`, no `on_add`/`on_remove`/`listen` calls
+anywhere in the current implementation. `state.get("tiles")` /
+`.get("explorers")` / `.get("players")` on the long-held `state` reference
+DO stay correctly query-able and up to date on every call (confirmed via
+`_log_state_counts`, which has shown correct, growing counts throughout this
+project's whole testing history) — it's specifically the granular
+per-field `listen()` callback that doesn't fire, not the underlying data.
 
-**Critical callback rules:**
-- `on_add` back-fills existing items — treat it as "initial + future additions combined"
-- `on_change` does NOT cascade to nested schema properties — always attach `listen` calls
-  for nested fields inside the `on_add` for their parent collection
-- Schema instances arrive as Dictionary (Dictionary decode confirmed); state_mapper accesses
-  fields by string key (e.g. `tile_dict["isRevealed"]`)
-- Store handles returned by `listen`, `on_add`, `on_remove`, `on_change` and call
-  `cb.remove(handle)` on scene cleanup to prevent dangling callbacks
+**Trade-off:** this re-processes every tile/explorer/player on every delta
+instead of reacting only to what changed. Cheap at this project's scale
+(≤289 tiles, a handful of explorers/players) — revisit only if profiling
+ever shows this mattering at a larger scale.
+
+**If a future SDK release is believed to fix per-field `listen()` on
+collection items:** re-verify against MANY sequential updates to the SAME
+field before trusting it again, not just the first update — that's exactly
+the gap that let this bug (and a related turnState one, Decision 063) go
+unnoticed for multiple tasks.
 
 ---
 

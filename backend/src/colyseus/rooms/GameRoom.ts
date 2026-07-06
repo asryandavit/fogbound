@@ -3,8 +3,10 @@ import { FogboundState } from '../schemas/FogboundState';
 import { TileSchema } from '../schemas/TileSchema';
 import { ExplorerSchema } from '../schemas/ExplorerSchema';
 import { PlayerSchema } from '../schemas/PlayerSchema';
-import { isValidMove, applyMove } from '../model/GameRules';
+import { isValidMove, applyMove, checkWinCondition } from '../model/GameRules';
 import { GameState, TileState, ExplorerState, PlayerState, tileKey } from '../model/GameState';
+import { placeTreasure } from '../model/BoardSetup';
+import { chooseBotAction } from '../model/BotAI';
 
 const COLORS = ['red', 'blue', 'green', 'yellow'];
 const EXPLORERS_PER_PLAYER: Record<number, number> = {
@@ -12,6 +14,7 @@ const EXPLORERS_PER_PLAYER: Record<number, number> = {
   11: 2, 13: 2,
   15: 3, 17: 3,
 };
+const BOT_THINK_MS = 900;
 
 export class GameRoom extends Room<{ state: FogboundState }> {
   private readonly sessionToPlayerId = new Map<string, string>();
@@ -37,28 +40,18 @@ export class GameRoom extends Room<{ state: FogboundState }> {
   async onJoin(client: Client, options: any) {
     const playerId: string = options.playerId || client.sessionId;
     const username: string = options.username || 'Player';
-    const slot = this.state.players.size;
 
     this.sessionToPlayerId.set(client.sessionId, playerId);
-
-    const cols = this.boardCols();
-    const rows = this.boardRows();
-    const baseX = Math.floor(cols / 2);
-    const baseY = slot === 0 ? 0 : rows - 1;
-
-    const player = new PlayerSchema();
-    player.playerId = playerId;
-    player.username = username;
-    player.slotNumber = slot;
-    player.teamColor = COLORS[slot] || 'red';
-    player.isConnected = true;
-    player.baseX = baseX;
-    player.baseY = baseY;
-    this.state.players.set(playerId, player);
-
-    this.spawnExplorers(playerId, slot, baseX, baseY, rows, cols);
-
+    this.addPlayer(playerId, username, false);
     console.log(`Player joined: ${username} (${playerId})`);
+
+    // Solo-vs-bot: if this is the first (and so far only) player and they
+    // asked for a bot opponent, spawn one immediately rather than waiting
+    // for a second human — otherwise there is no way to play alone.
+    if (options.vsBot && this.state.players.size === 1) {
+      this.addPlayer(`bot_${playerId}`, 'Bot', true);
+      console.log(`Bot opponent added for solo match: ${this.state.matchId}`);
+    }
 
     if (this.state.players.size >= 2) this.startMatch();
   }
@@ -108,6 +101,34 @@ export class GameRoom extends Room<{ state: FogboundState }> {
       const top = this.state.tiles.get(tileKey(x, rows - 1));
       if (top) top.isRevealed = true;
     }
+
+    for (const placement of placeTreasure(rows, cols)) {
+      const tile = this.state.tiles.get(tileKey(placement.x, placement.y));
+      if (!tile) continue;
+      tile.treasureType = placement.treasureType;
+      tile.treasureValue = placement.treasureValue;
+    }
+  }
+
+  private addPlayer(playerId: string, username: string, isBot: boolean): void {
+    const slot = this.state.players.size;
+    const cols = this.boardCols();
+    const rows = this.boardRows();
+    const baseX = Math.floor(cols / 2);
+    const baseY = slot === 0 ? 0 : rows - 1;
+
+    const player = new PlayerSchema();
+    player.playerId = playerId;
+    player.username = username;
+    player.slotNumber = slot;
+    player.teamColor = COLORS[slot] || 'red';
+    player.isConnected = !isBot;
+    player.isBot = isBot;
+    player.baseX = baseX;
+    player.baseY = baseY;
+    this.state.players.set(playerId, player);
+
+    this.spawnExplorers(playerId, slot, baseX, baseY, rows, cols);
   }
 
   private spawnExplorers(playerId: string, slot: number, baseX: number, baseY: number, rows: number, cols: number) {
@@ -136,7 +157,10 @@ export class GameRoom extends Room<{ state: FogboundState }> {
 
   private startTurnTimer() {
     if (this.turnTimer) clearTimeout(this.turnTimer);
-    this.turnTimer = setTimeout(() => this.advanceTurn(), this.state.turnTimerSeconds * 1000);
+    const playerId = this.state.turnState.currentPlayerId;
+    // GDD: "When the timer expires, the game auto-selects the safest legal
+    // move" — reuses the same bot brain rather than a bare turn-skip.
+    this.turnTimer = setTimeout(() => this.playAutoTurn(playerId), this.state.turnTimerSeconds * 1000);
   }
 
   private advanceTurn() {
@@ -154,10 +178,29 @@ export class GameRoom extends Room<{ state: FogboundState }> {
       if (botCount + 1 >= 3) {
         this.broadcast('player_afk_bot_controlling', { playerId: next });
       }
-      setTimeout(() => this.advanceTurn(), 2000);
+      setTimeout(() => this.playAutoTurn(next), BOT_THINK_MS);
     } else {
       this.startTurnTimer();
     }
+  }
+
+  /** Plays one action (move, or pass if none is worth making) for playerId
+   * using the server-side bot brain (Decision 003 — never client-side), then
+   * advances the turn. Used both for actual bot-controlled players and for
+   * a human whose turn timer expired (GDD: auto-select the safest legal
+   * move rather than a bare skip). */
+  private playAutoTurn(playerId: string) {
+    if (this.state.status === 'finished') return;
+    if (this.state.turnState.currentPlayerId !== playerId) return; // stale timer
+
+    const pureState = this.toPureState();
+    const action = chooseBotAction(pureState, playerId);
+    if (action.type === 'move') {
+      const nextState = applyMove(pureState, action.explorerId, action.target);
+      this.applyPureState(nextState);
+      if (this.checkForWinner()) return;
+    }
+    this.advanceTurn();
   }
 
   private handleMoveExplorer(client: Client, message: any) {
@@ -178,6 +221,7 @@ export class GameRoom extends Room<{ state: FogboundState }> {
 
     const nextState = applyMove(pureState, explorerId, { x: targetX, y: targetY });
     this.applyPureState(nextState);
+    if (this.checkForWinner()) return;
     this.advanceTurn();
   }
 
@@ -186,6 +230,18 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     if (!player) return;
     if (player.playerId !== this.state.turnState.currentPlayerId) return;
     this.advanceTurn();
+  }
+
+  /** Returns true (and ends the match) if checkWinCondition now reports a winner. */
+  private checkForWinner(): boolean {
+    const winnerId = checkWinCondition(this.toPureState());
+    if (!winnerId) return false;
+    this.state.status = 'finished';
+    this.state.winnerId = winnerId;
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+    this.broadcast('match_ended', { winnerId });
+    console.log(`Match ended: ${this.state.matchId}, winner=${winnerId}`);
+    return true;
   }
 
   private findPlayerBySession(sessionId: string): PlayerSchema | null {

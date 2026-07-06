@@ -3,6 +3,12 @@ class_name StateMapper extends RefCounted
 # into GameState updates. Only file, besides network_manager.gd, permitted to
 # consume raw server data shapes (Decision 043). Never imports Colyseus.*.
 # All functions are static: this is a pure translator with no instance state.
+#
+# Called fresh on every state_changed event (see network_manager.gd's
+# _sync_all_from_state) — not from field-level listen() callbacks. Per-field
+# listen() on MapSchema collection items was tried first and found to never
+# fire again after initial registration in this SDK build (0.17.11); see
+# docs/DECISIONS.md for the full empirical history.
 
 ## Reads a field from either a Dictionary or a Colyseus Schema Object uniformly.
 ## Both types expose a single-arg get(key) — Dictionary's two-arg get(key, default)
@@ -74,16 +80,6 @@ static func apply_turn_change(turn_data) -> void:
         int(_field(turn_data, "turnNumber", 0)),
         str(_field(turn_data, "phase", ""))
     )
-
-## Same as apply_turn_change, but takes already-extracted primitive values
-## instead of a turnState object reference. Needed because a root-level
-## single REF schema field's object becomes unreadable on later re-query
-## (confirmed live with two real clients: state.get("turnState") returns
-## null after the first callback, even though the field's listen() callback
-## keeps firing correctly with valid new-value arguments) — unlike MapSchema
-## collection items (tiles/explorers), whose objects stay reliably readable.
-static func apply_turn_change_values(current_player_id: String, turn_number: int, phase: String) -> void:
-    GameState.set_turn_state(current_player_id, turn_number, phase)
 
 static func finalize_initialization() -> void:
     GameState.mark_initialized()

@@ -7,6 +7,7 @@ import { TurnStateSchema } from './TurnStateSchema';
 export class FogboundState extends Schema {
   @type('string') matchId: string = '';
   @type('string') status: string = 'pending';
+  @type('string') winnerId: string = '';
   @type('string') winCondition: string = 'all_treasure';
   @type('number') turnTimerSeconds: number = 60;
   @type({ map: TileSchema }) tiles = new MapSchema<TileSchema>();

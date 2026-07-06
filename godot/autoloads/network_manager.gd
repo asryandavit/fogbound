@@ -23,9 +23,8 @@ var local_player_id: String = ""
 
 # Untyped: Colyseus.* are inner classes; type annotations fail at parse time
 # before the GDExtension populates the class registry (spike confirmed this).
-var _client    = null  # Colyseus.Client
-var _room      = null  # Colyseus.Room
-var _callbacks = null  # Colyseus.Callbacks — set after join, used in GC2+
+var _client = null  # Colyseus.Client
+var _room   = null  # Colyseus.Room
 
 # ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -51,6 +50,10 @@ func connect_to_match(options: Dictionary = {}) -> void:
 	var join_opts := {
 		"playerId": "player_%d" % Time.get_ticks_msec(),
 		"username": "Player",
+		# No menu/matchmaking flow exists yet — default to a bot opponent so
+		# opening the game solo is actually playable. Remove this default
+		# once a real "vs AI" / "find match" choice is built.
+		"vsBot": true,
 	}
 	join_opts.merge(options, true)  # caller options override defaults
 	local_player_id = join_opts["playerId"]
@@ -96,8 +99,7 @@ func send_end_turn() -> void:
 func disconnect_from_match() -> void:
 	if _room and _room.connected:
 		_room.leave()
-	_room      = null
-	_callbacks = null
+	_room = null
 	_set_state(State.DISCONNECTED)
 
 ## True while a room connection is live.
@@ -153,16 +155,35 @@ func _on_message_received(type: Variant, data: Variant) -> void:
 # ─── Private: state observation ───────────────────────────────────────────────
 
 func _on_state_changed() -> void:
-	# Reliable baseline: fires on every server delta.
-	# GC2 will route this through state_mapper → game_state instead of logging.
+	# Reliable baseline: fires on every server delta (confirmed live across
+	# every task this project has built). This is now the ONLY state
+	# observation mechanism — see _setup_state_callbacks for why.
 	var state = _room.get_state()
 	if state != null:
 		_log_state_counts(state)
+		_sync_all_from_state(state)
 
 func _setup_state_callbacks() -> void:
-	# Attempt to use Colyseus.Callbacks.of(room) for delta-driven observation.
-	# This is the ⚠ flagged in GODOT_CLIENT.md — we test it empirically here.
-	# The state_changed signal above is the confirmed-working fallback.
+	# EMPIRICAL FINDING (see docs/DECISIONS.md — supersedes the
+	# Colyseus.Callbacks-based design from GC2/Decision 060/063): per-field
+	# listen() registered on a MapSchema collection item (tiles/explorers/
+	# players, obtained via on_add) never fires again after the initial
+	# registration in this SDK build (0.17.11) — confirmed live in a real
+	# multi-move bot match where explorer x/y listen callbacks fired ZERO
+	# times across ~10 real server-side moves, even though the server was
+	# provably moving them (confirmed via backend-side logging). This
+	# invalidates the earlier belief that collection items "stay reliably
+	# readable" — they may be readable, but their field-level listen()
+	# doesn't fire at all, a different and more basic problem than turnState's
+	# stale-reread issue.
+	#
+	# room.state_changed, however, IS confirmed reliable — it has fired
+	# correctly on every real delta throughout this project (originally just
+	# for _log_state_counts). So: drop the whole Callbacks/on_add/listen
+	# apparatus for tiles/explorers/players/turnState, and instead re-sync
+	# everything from a fresh state.get(...) read every time state_changed
+	# fires. Cheap given board sizes top out at 289 tiles and a handful of
+	# explorers/players.
 	var state = _room.get_state()
 	if state == null:
 		push_warning("NetworkManager: get_state() null after join")
@@ -170,132 +191,37 @@ func _setup_state_callbacks() -> void:
 
 	print("[NetworkManager] initial state type=%s" % type_string(typeof(state)))
 	_log_state_counts(state)
+	_sync_all_from_state(state)
 
-	# Colyseus.Callbacks.of(room): confirmed working with 0.17.11 (GC1+GC2 empirical tests).
-	# CONFIRMED signatures (see docs/GODOT_CLIENT.md for full notes):
-	#   on_add(state, "collection_key", func(item: Dictionary, key: String))
-	#   on_remove(state, "collection_key", func(item: Dictionary, key: String))
-	#   listen(item, "field_name", func(new_val, old_val))
-	#   on_change(state, func() -> void: ...)  — zero args
-	# INVALID: on_add(room, callback) — room is not a valid target; use state dict.
-	# BROKEN (crashes native ext, Decision 060): on_change(state, "field", func(val, key))
-	#   on a root-level Schema REF field — use listen(state, "field", ...) instead.
-	# NOTE: state is empty at registration time; callbacks fire on the first server patch.
-	# NOTE: on_add back-fills existing items when the first patch arrives.
-	_callbacks = Colyseus.Callbacks.of(_room)
-	if _callbacks == null:
-		print("[NetworkManager] Callbacks.of() returned null — state_changed signal is fallback")
-		return
+## Re-derives GameState from a full state snapshot. Called on the initial
+## post-join state and on every subsequent state_changed event. StateMapper
+## re-validates and translates each item fresh every time (Decision 043) —
+## no raw SDK data is cached across calls.
+func _sync_all_from_state(state) -> void:
+	var tiles = state.get("tiles")
+	if tiles is Dictionary:
+		for key in tiles.keys():
+			StateMapper.apply_tile_change(key, tiles[key])
 
-	# GC2: route every callback through StateMapper — this file is the only one
-	# allowed to touch Colyseus.* (Decision 043); StateMapper never imports it.
-	#
-	# EMPIRICAL CORRECTIONS vs docs/GODOT_CLIENT.md (found during GC2 live testing,
-	# SDK 0.17.11 — see docs/DECISIONS.md entry 060):
-	#   - on_change(state, "field_name", func(val, key)) CRASHES the native
-	#     extension (misaligned-pointer panic in GodotCallbackEntry) when used on
-	#     a root-level Schema REF field (e.g. turnState). Use listen(state,
-	#     "field_name", func(new_val, old_val)) instead — same result, no crash.
-	#   - on_change(state, func(...)) (the generic, no-key form) invokes its
-	#     callback with ZERO arguments, not one. func(_changes) errors with
-	#     "Method expected 1 argument(s), but called with 0."
+	var explorers = state.get("explorers")
+	if explorers is Dictionary:
+		for existing_id in GameState.explorers.keys():
+			if not explorers.has(existing_id):
+				StateMapper.remove_explorer(existing_id)
+		for key in explorers.keys():
+			StateMapper.apply_explorer_change(key, explorers[key])
 
-	# Tiles: on_add back-fills existing tiles first, then fires for new additions.
-	# Nested listen() is attached inside on_add — on_change does not cascade to
-	# nested schema properties (Decision 044).
-	_callbacks.on_add(state, "tiles", func(tile, coord_key: String) -> void:
-		_callbacks.listen(tile, "isRevealed", func(_new_val, _old_val) -> void:
-			StateMapper.apply_tile_change(coord_key, tile)
-		)
-		StateMapper.apply_tile_change(coord_key, tile)
-	)
+	var players = state.get("players")
+	if players is Dictionary:
+		for key in players.keys():
+			StateMapper.apply_player_change(key, players[key])
 
-	# Explorers
-	_callbacks.on_add(state, "explorers", func(explorer, id: String) -> void:
-		_callbacks.listen(explorer, "x", func(_n, _o) -> void: StateMapper.apply_explorer_change(id, explorer))
-		_callbacks.listen(explorer, "y", func(_n, _o) -> void: StateMapper.apply_explorer_change(id, explorer))
-		StateMapper.apply_explorer_change(id, explorer)
-	)
-	_callbacks.on_remove(state, "explorers", func(_explorer, id: String) -> void:
-		StateMapper.remove_explorer(id)
-	)
+	var turn_state = state.get("turnState")
+	if turn_state != null:
+		StateMapper.apply_turn_change(turn_state)
 
-	# Players
-	_callbacks.on_add(state, "players", func(player, id: String) -> void:
-		StateMapper.apply_player_change(id, player)
-	)
-
-	# Turn state (nested REF schema on root, mutated IN PLACE server-side —
-	# backend/src/colyseus/rooms/GameRoom.ts: this.state.turnState.currentPlayerId
-	# = ... never reassigns the turnState reference itself).
-	#
-	# CONFIRMED LIVE with two real concurrent clients, in two stages:
-	#   1. listen(state, "turnState", callback) alone only fires when the OUTER
-	#      reference changes — which it never does — so it silently missed
-	#      every later in-place field mutation for a client connected before
-	#      the match started (that client's current_player_id stayed empty
-	#      forever; a client joining AFTER the match started happened to see
-	#      the correct value because its first full-state hydration already
-	#      had the field set).
-	#   2. Attaching nested listen()s on the turnState object's fields (the
-	#      pattern used for tiles/explorers) DOES fire correctly with the
-	#      right new-value argument each time — but re-reading the field via
-	#      .get() on that SAME captured object reference afterward (or via a
-	#      fresh state.get("turnState") re-fetch) returns stale/null data.
-	#      Root-level single REF schema objects apparently don't stay
-	#      reliably readable after the fact, unlike MapSchema collection
-	#      items (tiles/explorers), which do.
-	#   3. Tracking each field in its own local `var` (mutated from each
-	#      listen() callback's new-value argument) ALSO failed — confirmed via
-	#      an isolated repro that GDScript lambdas capture outer local
-	#      variables BY VALUE (a snapshot at closure-creation time), not by
-	#      reference. Three sibling closures each mutating what looks like a
-	#      shared `current_player_id`/`turn_number`/`phase` were each mutating
-	#      their OWN frozen copy — a 4th closure (`push`) calling
-	#      StateMapper always saw its own copy from the moment IT was created,
-	#      never the updates. See Decision 063.
-	# Fix: use a Dictionary (a reference type) to hold the three tracked
-	# values. Every closure captures the SAME dict reference by value, but the
-	# dict's CONTENTS are shared and mutations are visible across all of them.
-	_callbacks.listen(state, "turnState", func(turn_state, _old_val) -> void:
-		if turn_state == null:
-			return
-		var tracked := {
-			"current_player_id": str(StateMapper._field(turn_state, "currentPlayerId", "")),
-			"turn_number": int(StateMapper._field(turn_state, "turnNumber", 0)),
-			"phase": str(StateMapper._field(turn_state, "phase", "")),
-		}
-		var push := func() -> void:
-			StateMapper.apply_turn_change_values(
-				tracked["current_player_id"], tracked["turn_number"], tracked["phase"]
-			)
-		# Guard against null: at least one of these fires once at registration
-		# with a null new-value (confirmed live — int(null) throws "Nonexistent
-		# 'int' constructor"), before any real data has arrived.
-		_callbacks.listen(turn_state, "currentPlayerId", func(n, _o) -> void:
-			if n != null:
-				tracked["current_player_id"] = str(n)
-			push.call()
-		)
-		_callbacks.listen(turn_state, "turnNumber", func(n, _o) -> void:
-			if n != null:
-				tracked["turn_number"] = int(n)
-			push.call()
-		)
-		_callbacks.listen(turn_state, "phase", func(n, _o) -> void:
-			if n != null:
-				tracked["phase"] = str(n)
-			push.call()
-		)
-		push.call()
-	)
-
-	# Signal GameState that initial hydration is complete. Zero-arg callback —
-	# see EMPIRICAL CORRECTIONS above.
-	_callbacks.on_change(state, func() -> void:
-		if not GameState.is_initialized:
-			StateMapper.finalize_initialization()
-	)
+	if not GameState.is_initialized:
+		StateMapper.finalize_initialization()
 
 # ─── Private: helpers ─────────────────────────────────────────────────────────
 

@@ -86,6 +86,22 @@ Fog is derived entirely from `tile.isRevealed` in server state — never compute
 Camera auto-pan fires only on the local player's turn start (Decision 025 fog-integrity rule;
 camera is static during opponent turns to prevent information leak).
 
+## State Observation: full re-sync on state_changed (Decision 069)
+
+`network_manager.gd` does NOT use `Colyseus.Callbacks` (`on_add`/`on_remove`/
+`listen`) at all, despite that being the design through GC2-GC7 (Decisions
+044/048/060/063). On every `room.state_changed` signal — confirmed reliable
+across every task built in this project — `_sync_all_from_state()` re-reads
+the entire current state fresh and pushes every tile/explorer/player/
+turnState through `state_mapper.gd` unconditionally, rather than reacting to
+individual field-level callbacks. This was forced by a real finding (below):
+per-field `listen()` on a MapSchema collection item never fires again after
+its initial registration in SDK 0.17.11, so granular reactive updates
+silently never happened past the first change. Re-deriving everything on
+every delta is simpler and provably correct; the cost (re-processing the
+whole state each delta) is cheap at this project's board sizes (≤289 tiles,
+a handful of explorers/players).
+
 ## Known Beta-SDK Risks
 
 The Colyseus native SDK (0.17.11, GDExtension) is in beta. All mitigations are isolated
@@ -93,16 +109,12 @@ behind `network_manager.gd` — SDK-specific workarounds never leak to view code
 
 | Risk | Status | Mitigation |
 |---|---|---|
-| `bind_to()` not in GDScript wrapper | Confirmed absent | Use `Colyseus.Callbacks.of(room)` exclusively; never call bind_to() |
-| `on_change` does not cascade to nested schemas | Confirmed | Attach nested `listen()` calls inside the `on_add` callback (Decision 044) |
-| `on_change(state, "field", func(val,key))` crashes on root REF fields | Confirmed (Decision 060) | Use `listen(state, "field", func(new,old))` instead — never the field-keyed on_change() overload on a root-level Schema REF field |
-| Generic `on_change(state, callback)` invokes callback with zero args | Confirmed (Decision 060) | Callback must be `func() -> void`, not `func(_changes)` |
+| Per-field `listen()` on a MapSchema collection item (tiles/explorers/players obtained via `on_add`) never fires again after initial registration | Confirmed (Decision 069) | Abandoned Callbacks-based observation entirely — re-sync the full state on every `state_changed` event instead (see above) |
+| `on_change(state, "field", func(val,key))` crashes the native extension on a root-level REF field | Confirmed (Decision 060) — no longer applicable, this overload isn't used at all anymore | N/A |
 | `GameState.state_initialized` can fire before collections are populated | Confirmed (Decision 061) | Never cache a value derived from a collection (e.g. board row count) gated on `is_initialized` — recompute fresh from current data on every relevant event instead |
-| Root-level single REF schema objects (e.g. turnState) become unreadable via `.get()` after the initial snapshot | Confirmed (Decision 063) | Never re-read the object later — track only via each field's `listen()` new-value argument |
-| GDScript lambdas capture outer local `var`s by value, not reference | Confirmed (Decision 063, general GDScript behavior, not Colyseus-specific) | Use a Dictionary/Array/RefCounted (reference type) to share mutable state across sibling closures |
+| GDScript lambdas capture outer local `var`s by value, not reference | Confirmed (Decision 063, general GDScript behavior, not Colyseus-specific) | Use a Dictionary/Array/RefCounted (reference type) to share mutable state across sibling closures — applies anywhere multiple closures need to share mutable local state, not just Colyseus code |
 | Schema instances may arrive as Dictionary when `set_state_type()` not called | Confirmed | state_mapper.gd handles both; spike confirmed Dictionary decode works for all 169 tiles |
 | GDScript inner-class limit: cannot `extends Colyseus.Schema` in a standalone file | Confirmed | Define GDScript schema classes as inner classes within a single schema_defs.gd file |
-| Callbacks dispatched off the WebSocket thread | Beta risk | In headless/GUT tests, call `Colyseus.poll()` manually once per frame; auto-polling is active in editor/device via the SDK's internal _Poller node |
 | Godot .NET/Mono unsupported by native SDK | Confirmed | GDScript standard build only (Decision 034) |
 
 **Corrections vs earlier planning notes (AUTOMATION.MD):**

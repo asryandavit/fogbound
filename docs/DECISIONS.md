@@ -1058,3 +1058,109 @@ Decision 063 state. The Docker image was rebuilt and the container restarted
 to match.
 Security: none — this entry only corrects a documentation/diagnosis error,
 no code changed as a result.
+
+## 066 — Treasure spawns on the board; win condition wired into GameRoom
+
+Decision: `initializeBoard()` now scatters coin and shield treasure
+(`backend/src/colyseus/model/BoardSetup.ts`, `placeTreasure()`), excluding the
+starting rows (GDD: "no treasure on starting row/column tiles"). `GameRoom`
+now calls the already-written, already-tested `checkWinCondition()` after
+every move (human or bot) via a new `checkForWinner()` — previously it was
+never called at all. `FogboundState` gained a `winnerId` field; on a win,
+status becomes `'finished'`, the turn timer is cleared, and a `match_ended`
+message broadcasts the winner.
+Reason: found while scoping the AI opponent work — the server had a fully
+tested win-condition function it never invoked, and never generated any
+treasure at all (`initializeBoard` only ever produced `'grass'`). Without
+this, there was nothing to actually play for and no way for a match to end,
+making "AI opponent" meaningless regardless of how good the bot's decisions
+were.
+Security: `placeTreasure` is a pure, seedable function (rng is injectable,
+defaults to `Math.random`) — server-authoritative, no client input involved.
+
+## 067 — Bot AI: root-level UCB1 Monte Carlo, server-side only
+
+Decision: `backend/src/colyseus/model/BotAI.ts` (`chooseBotAction`) picks a
+bot's move using a root-level UCB1 Monte Carlo search: enumerate every legal
+action for the bot's own explorers (at most `explorers × 4` moves + pass),
+run a fixed simulation budget (150) split across candidates via UCB1,
+self-play rollout each candidate forward with a fast heuristic policy (attack
+undefended treasure-carriers, avoid shielded ones, grab adjacent treasure,
+walk carried treasure toward base, mild exploration bias) for up to 16 plies,
+and reward per-ply-discounted score delta (own score gain minus best
+opponent's gain, discounted ~10%/ply) plus a small "still carrying treasure
+near base" shaping term when the horizon runs out before delivery. Runs
+entirely server-side inside `GameRoom` (Decision 003 — never client-side).
+The exact same function also resolves the GDD's turn-timer-expiry rule
+("auto-selects the safest legal move") — `startTurnTimer()`'s callback and a
+bot's own turn both go through one shared `playAutoTurn(playerId)`.
+Reason: the per-turn branching factor is small (this game gives exactly one
+action per turn, Decision 054), making an exhaustive root search over every
+candidate tractable in a single synchronous call rather than needing deep
+recursive tree expansion. Per-ply discounting was necessary, not cosmetic —
+an early version without it was provably indifferent between grabbing a
+coin immediately versus two turns later, since a long-enough rollout horizon
+let the bot reach the same coin either way; three unit tests caught this
+directly and only passed once the discount made "sooner" measurably better,
+which is also just correct bot behavior, not only a testability fix.
+Security: bot decisions never touch the client (Decision 003); the client
+only ever receives the resulting state delta like any other move.
+
+## 068 — Solo-vs-bot: `vsBot` join option starts an immediate 1-player match
+
+Decision: `onJoin` now accepts `options.vsBot`. If the joining player is the
+room's first (and so far only) player and requested it, a second, synthetic
+bot player (`bot_<playerId>`, `isBot=true` from creation) is added
+immediately via a new shared `addPlayer()` helper (refactored out of the
+join-a-real-player path so both cases spawn explorers/assign a base/side
+identically), and `startMatch()` fires right away instead of waiting for a
+second human. `network_manager.gd`'s `connect_to_match()` now defaults
+`vsBot: true` in its join options.
+Reason: without this, the AI opponent just built is unreachable — the room
+only ever started once 2 real humans joined, so a solo player had no way to
+trigger a match against the bot at all. No menu/matchmaking flow exists yet
+to offer this as a real choice (Decision 058 scope cut), so it's the default
+for now; remove the client-side default once a real "vs AI" / "find match"
+choice is built.
+Security: neutral — `vsBot` only affects room population at join time, no
+new server trust boundary.
+
+## 069 — State sync redesigned: full re-sync on state_changed, not per-field listen()
+
+Decision: `network_manager.gd` no longer uses `Colyseus.Callbacks`
+(`on_add`/`on_remove`/`listen`) for tiles, explorers, players, or turnState
+at all. Instead, on every `room.state_changed` event (already confirmed
+reliable — it's what `_log_state_counts` was already using), a new
+`_sync_all_from_state()` re-reads the ENTIRE current state fresh and pushes
+every tile/explorer/player/turnState through `StateMapper` unconditionally.
+This supersedes the Callbacks-based design from GC2 (Decision 044) and the
+partial fixes in Decisions 060/063.
+Reason: found while live-testing the AI opponent with two real clients over
+an extended multi-move match (the first time this project observed MANY
+sequential updates to the same field, not just one or two). Per-field
+`listen()` registered on a MapSchema collection item (tiles/explorers/
+players, obtained via `on_add`) **never fires again after the initial
+registration** in this SDK build (0.17.11) — confirmed by adding a debug
+print inside the explorer `x`/`y` listen callbacks: zero firings across ten
+real server-side moves, while the backend's own logs proved the server was
+moving explorers correctly every time. This directly contradicts Decision
+063's claim that "MapSchema collection items... stay reliably readable
+unlike root REF fields" — that claim was only ever exercised by a single
+update; it does not hold for a second update, and for collection items the
+problem isn't stale reads at all, it's that the callback doesn't fire.
+`room.state_changed`, by contrast, has fired correctly on every real delta
+across every task built in this project. Re-deriving the full state on every
+delta is simpler and provably correct, at the cost of re-processing
+everything each time — cheap given board sizes top out at 289 tiles and a
+handful of explorers/players. All the `apply_*_change_values` primitive-
+tracking functions added for Decisions 063/064 are now dead code and were
+removed; `StateMapper`'s original `apply_tile_change`/`apply_explorer_change`/
+`apply_player_change`/`apply_turn_change` (reading fields fresh from
+whatever object is handed to them each call) are sufficient again, since
+they're now always called with a just-obtained object, never a stale one.
+Security: neutral — same data, different sync mechanism; no new exposure.
+Future work: if per-field listen() is later confirmed fixed in a newer SDK
+release, the more granular (and slightly cheaper) approach could be
+reinstated — but only after empirically re-verifying it across many
+sequential updates to the same field, not just the first one, given how this
+exact mistake was made twice already (Decisions 060, 063).
