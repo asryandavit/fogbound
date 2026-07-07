@@ -1165,6 +1165,61 @@ reinstated — but only after empirically re-verifying it across many
 sequential updates to the same field, not just the first one, given how this
 exact mistake was made twice already (Decisions 060, 063).
 
+---
+
+**From 074 onward, decisions use an expanded template** (Status/Date/Context/
+Decision/Alternatives considered/Tradeoffs/Consequences/Supersedes-Related)
+for higher-stakes architectural and product choices. Earlier entries keep
+their original Decision/Reason/Security form — not rewritten (append-only).
+
+## 074 — Async multiplayer persists in PostgreSQL, not Colyseus rooms
+Status: Accepted | Date: 2026-07-08
+Context: Async turns + daily-seed are launch pillars. Colyseus rooms are
+  ephemeral (disposed when empty); the Colyseus community itself advises against
+  using it for async. Real-time indie multiplayer dies of empty lobbies.
+Decision: Live PvP stays on Colyseus. Async matches persist as JSONB in
+  PostgreSQL; turns submitted via authenticated REST, validated server-side via
+  the shared GameRules, opponents notified via FCM/APNs. No long-lived room.
+Alternatives considered: (a) Force Colyseus to hold long-lived rooms — rejected:
+  memory cost, fragility. (b) Firebase/Firestore — rejected: lock-in, cost.
+Tradeoffs: Two code paths (live + async); gain reliability, cheap scale,
+  replay-ready state, trivial 5+ parallel matches per player.
+Consequences: ARCHITECTURE.md updated; new INFRA.md.
+Supersedes / Related: any prior "Colyseus for all multiplayer" assumption.
+
+## 080 — Launch multiplayer prioritizes zero-concurrency formats
+Status: Accepted | Date: 2026-07-08
+Context: The multiplayer-liquidity death spiral kills tiny-team real-time games:
+  you need ~1440/(wait-tolerance-in-min) daily actives just to fill matches,
+  multiplied per mode/tier. Every comparable success (Polytopia, Warbits) went
+  async; the real-time ones died.
+Decision: Launch with (a) solo vs bot, (b) async friend play via room codes,
+  (c) daily-seed challenges — all near-zero-concurrency. Add real-time random
+  matchmaking only after population exists. Never fragment matchmaking early.
+Alternatives considered: Lead with real-time random matchmaking — rejected:
+  empty-lobby death spiral.
+Tradeoffs: Less "instant PvP" splash at launch; avoids the #1 cause of indie
+  multiplayer death.
+Consequences: GDD.md, MARKETING.md, ARCHITECTURE.md.
+
+## 081 — Tiles are server-side data records, not hardcoded logic
+Status: Accepted | Date: 2026-07-08
+Context: Next build is tile content. Post-launch themes and the map editor both
+  need identical mechanics under different art. Hardcoding tiles now = rewriting
+  them twice.
+Decision: Every tile is a data record { id, category, behavior, spawn_weight }
+  in a TypeScript registry the Colyseus GameRules reads (seeded to Postgres as
+  source of truth). Rules engine + MCTS bot branch on category/behavior, never
+  on a specific tile id. Client stays pure renderer: receives tileType/
+  treasureType, maps id -> art via a per-theme art resource. No tile behavior
+  on the client.
+Alternatives considered: (a) Hardcode each tile — rejected: blocks themes +
+  editor. (b) Define tiles client-side — rejected: violates pure-renderer rule.
+Tradeoffs: Slightly more structure now; makes themes + map editor cheap and
+  keeps bot logic theme-agnostic.
+Consequences: ARCHITECTURE.md, GDD.md, new TILES.md.
+Supersedes / Related: 043 (SDK boundary), CONTEXT.md pure-renderer rules.
+
 ## 070 — Game-flow layer: MainMenu → Match → Results, driven by a GameFlow autoload
 
 Decision: added the app's front-to-back flow so the game is a real playable

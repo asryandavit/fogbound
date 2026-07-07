@@ -546,19 +546,42 @@ Key GDScript 4 constraints discovered:
 
 ### Next After This Sprint
 
+**Superseded by Decisions 074/080/081 (2026-07-08)** — see docs/DECISIONS.md,
+docs/INFRA.md, docs/MARKETING.md, docs/TILES.md for the full reasoning. Two
+changes to the list below vs. what was previously planned:
+1. Live-matchmaking polish (lobby, "searching…" state) is now explicitly
+   LOWER priority than async formats — Decision 080's liquidity math says a
+   promoted real-time queue is actively harmful before there's a population
+   to fill it. The mechanical PvP path itself already works and needs no
+   further work to remain usable.
+2. Tile content work no longer means hardcoding sword/water/boat directly
+   into GameRules/BotAI as originally planned — Decision 081 calls for a
+   data-record registry first (docs/TILES.md), so those tiles (and the rest
+   of the 48) become data entries afterward, not new code paths each time.
+
 - ~~MCTS bot AI inside Colyseus GameRoom~~ ✅ done (2026-07-06, root-level
   UCB1 Monte Carlo — see above); treasure spawn + win condition wiring
   done alongside it as prerequisites
 - ~~Menus (main menu, results screen) + choose vs Bot / vs Player~~ ✅ done
   (2026-07-06 — MainMenu + Results + GameFlow; see above). Basic PvP works via
-  Colyseus join_or_create (2 humans picking "Play vs Player" get matched).
-  STILL TODO: a real lobby / NestJS-backed matchmaking (skill/region/party),
-  a "searching for opponent…" state + timeout when no second human appears,
-  and per-map win-condition/turn-limit selection in the UI
-- More tile content beyond coins/shields (sword per Decision 058, discovery
-  popup/Tilepedia, water terrain wired into board generation)
+  Colyseus join_or_create (2 humans picking "Play vs Player" get matched) —
+  sufficient for now per Decision 080; lobby/matchmaking polish demoted, see above.
+- **Async multiplayer (room codes + daily-seed challenges)** — new top
+  priority per Decision 080. Concrete build order in docs/INFRA.md: async
+  turn-submission REST API (reuses existing GameRules) → room-code join
+  flow → seeded daily-board generation (BoardSetup's rng param is already
+  injectable) → device push-token storage → actual FCM/APNs delivery
+  (**blocked on user-provided Firebase/APNs credentials** — everything
+  before that step can be built without them).
+- **Tile data registry** — build the registry + migrate the 2 existing
+  hardcoded tiles (coin, shield) onto it FIRST (regression-guarded by the
+  existing Jest suite), THEN add new tiles (sword, water/boat, discovery
+  popup/Tilepedia) as data entries. Order matters — adding new tiles before
+  the registry exists means writing them twice. See docs/TILES.md.
 - Player accounts wired to the Godot client (NestJS auth exists — Google/
-  Apple/JWT — but the client doesn't use it yet; every match is anonymous)
+  Apple/JWT — but the client doesn't use it yet; every match is anonymous).
+  Also a prerequisite for async play (a match needs to find you when you're
+  not connected, which needs a real identity, not an anonymous session id).
 - Tile art + animation pass + SFX (placeholder procedural swatches only,
   per user's explicit "placeholder assets for now" decision)
 - Closed beta + polish + store submission

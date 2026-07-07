@@ -1,5 +1,44 @@
 # FOGBOUND — System Architecture
 
+## Two Multiplayer Paths: Live vs Async (Decision 074)
+
+```
+Live PvP (built)              Async — room codes / daily-seed (not yet built)
+────────────────              ──────────────────────────────────────────────
+Colyseus GameRoom (memory)    PostgreSQL matches.board_state (jsonb)
+    │                             │
+    ▼                             ▼
+GameRules (pure TS)  ◄────same────►  GameRules (pure TS)
+    │                             │
+    ▼                             ▼
+WebSocket delta push          REST POST /matches/:id/moves + push notify
+```
+
+Both paths call the same pure `GameRules` functions
+(`backend/src/colyseus/model/`) — Colyseus rooms are memory-resident and
+disposed when empty, which is fine for a live match (both players present)
+and wrong for a match that sits idle for hours/days between turns. Full
+detail, current gaps, and why: docs/INFRA.md. This refines the CLAUDE.md
+rule of thumb ("if it only exists during a match → Colyseus") specifically
+for async matches, whose live state must outlive any single connection —
+see Decision 074.
+
+The async (right) path is the current BUILD priority, ahead of any further
+work on the live (left) path beyond what already exists — Decision 080's
+launch-liquidity reasoning is a product decision, not an architectural one,
+but it's why: see docs/MARKETING.md.
+
+## Tile Data Registry (Decision 081)
+
+Not yet built — today only 2 of 48 GDD tile types exist (coins, shields),
+each hardcoded as its own check in `GameRules`/`BotAI`/`BoardSetup`. The
+target design is a data-record registry (`{ id, category, behavior,
+spawnWeight }`) that `GameRules` and `BotAI` branch on by category/behavior,
+never by specific tile id — so themes and a future map editor don't require
+rules-engine changes. Full spec: docs/TILES.md. The client's role is
+unchanged either way (Decision 043 pure-renderer boundary): it still only
+ever receives `tileType`/`treasureType` strings and maps them to art.
+
 ## Data Flow (one-directional)
 
 ```

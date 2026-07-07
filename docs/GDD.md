@@ -231,6 +231,12 @@ Win conditions are **configurable per map**:
 
 **48 tile types across 6 categories**, released across 3 tiers.
 
+Implementation note (Decision 081): tiles are built as server-side data
+records (id/category/behavior/spawn weight), not one hardcoded rule per
+tile — see docs/TILES.md. This page defines WHAT each tile is (design);
+TILES.md defines HOW the engine represents and reads them (architecture).
+Today only Coins and Shields (Tier 1, Treasure/Combat) are implemented.
+
 ---
 
 ### Tier 1 — Launch Tiles (20 tiles)
@@ -468,11 +474,27 @@ Orchestral-folk hybrid. Instruments: strings, acoustic guitar, pan flute/tin whi
 
 **UI:** portrait on phone + landscape on tablet, context-morphing primary button, Undo, End Turn, explorer selection tints, 6 category discovery popups, Tilepedia, animation-speed slider, discovery-popup toggle, reduced-motion mode, colorblind filters, haptics toggle.
 
-**Multiplayer:** realtime (60s turn timer option), async (24h default, 60s–7 days configurable), bot takeover after 3 missed turns with visible badge, push notifications (P0 QA), pass-and-play.
+**Multiplayer — launch order (Decision 080):** near-zero-concurrency formats
+ship first — (1) solo vs bot [done], (2) async friend play via room codes
+(24h default, 60s–7 days configurable turn timer), (3) daily-seed challenges
+(same generated board for everyone that day, compared via leaderboard, no
+opponent pairing needed). Real-time random matchmaking (queueing to be
+matched with a stranger) is deferred until there's population to draw
+from — see docs/MARKETING.md for the liquidity math. This does NOT remove
+realtime PvP as a mode: direct vs-Player matchmaking already works
+(Colyseus `join_or_create`); what's deferred is *promoting* it as the
+primary way to find a match. Bot takeover after 3 missed turns with visible
+badge, push notifications (P0 QA — needed for async; see docs/INFRA.md for
+the concrete gap), pass-and-play all still apply regardless of format.
 
 ### Deferred to V2
 
-Hexagon maps, triangle maps, bag expansion tuning (3+1→5+2), alliance mechanic animation polish, additional 12–15 landmark tile popups, cross-platform Steam port, Switch port, foldable Flex Mode, MFi/controller support, replays/share gifs, clan/guild systems, ELO ladder, legendary foil shader, spectator mode, season pass cosmetics, daily puzzle mode, weekly event boards.
+Hexagon maps, triangle maps, bag expansion tuning (3+1→5+2), alliance mechanic animation polish, additional 12–15 landmark tile popups, cross-platform Steam port, Switch port, foldable Flex Mode, MFi/controller support, replays/share gifs, clan/guild systems, ELO ladder, legendary foil shader, spectator mode, season pass cosmetics, weekly event boards.
+
+**Promoted to V1 (Decision 080):** daily puzzle mode — reframed as
+"daily-seed challenges" and moved out of this list into the Multiplayer
+launch order above. It's a zero-concurrency format (no opponent needed),
+exactly the kind of thing Decision 080 wants shipping first, not deferred.
 
 **Never (any version):** energy systems, gacha, pay-to-progress, card-level power tiers.
 
