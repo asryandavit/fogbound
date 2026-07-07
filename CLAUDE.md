@@ -312,6 +312,15 @@ The line must be one of:
   Documentation: no doc changes needed — this commit only fixes a typo in
                  SpikeTest.gd with no behavioral or structural change
 
+## Code comments
+
+Docs are the single source of truth. Write minimal code comments: explain
+*why* only where non-obvious; never restate *what* the code does or
+duplicate info already in DECISIONS.md / GDD.md / ARCHITECTURE.md. When
+code and docs disagree, docs win and the code is fixed. Before any
+architectural change, consult DECISIONS.md and draft a new numbered entry
+for approval before writing files.
+
 ## Quick Commands
 
 When I say "sprint" → read AGENT.md and execute current sprint

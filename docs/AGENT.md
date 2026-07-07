@@ -1,3 +1,12 @@
+## Code comments
+
+Docs are the single source of truth. Write minimal code comments: explain
+*why* only where non-obvious; never restate *what* the code does or
+duplicate info already in DECISIONS.md / GDD.md / ARCHITECTURE.md. When
+code and docs disagree, docs win and the code is fixed. Before any
+architectural change, consult DECISIONS.md and draft a new numbered entry
+for approval before writing files.
+
 ## Current Sprint — Godot Client Rebuild
 
 ### Context
@@ -578,6 +587,16 @@ changes to the list below vs. what was previously planned:
   existing Jest suite), THEN add new tiles (sword, water/boat, discovery
   popup/Tilepedia) as data entries. Order matters — adding new tiles before
   the registry exists means writing them twice. See docs/TILES.md.
+  Confirmed 2026-07-08: server-side only (TILES.md's design as written —
+  no client-side tile logic, matches Decision 043). Sequencing vs. art:
+  **blend** — tiles lead, but real-art swap-in for placeholder swatches can
+  start alongside once individual tiles stabilize, not gated on the full
+  registry/all 48 tiles finishing first. Verification standard for this
+  and future gameplay features: automated tests (Jest/GUT) first, **then an
+  in-person 2-device playtest as the final done-gate** — not automated
+  coverage alone (this project's history has repeatedly found real bugs,
+  e.g. the turnState sync bug, only visible with two real concurrent
+  clients).
 - Player accounts wired to the Godot client (NestJS auth exists — Google/
   Apple/JWT — but the client doesn't use it yet; every match is anonymous).
   Also a prerequisite for async play (a match needs to find you when you're
