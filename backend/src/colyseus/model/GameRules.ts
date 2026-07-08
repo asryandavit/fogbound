@@ -8,6 +8,7 @@ import {
   maxCoins,
   maxOtherItems,
 } from './GameState';
+import { getTileDefinition } from './TileRegistry';
 
 function cloneState(state: GameState): {
   tiles: Map<string, TileState>;
@@ -38,7 +39,8 @@ export function isValidMove(
   if (target.y < 0 || target.y >= state.gridRows) return false;
 
   const tile = state.tiles.get(tileKey(target.x, target.y));
-  if (tile && tile.tileType === 'water' && !explorer.hasBoat) return false;
+  const terrainDef = tile ? getTileDefinition(tile.tileType) : undefined;
+  if (terrainDef?.behavior === 'blocks_without_boat' && !explorer.hasBoat) return false;
 
   return true;
 }
@@ -143,12 +145,11 @@ export function applyMove(
   } else if (tile && tile.treasureType !== 'none' && tile.treasureType !== '' && tile.treasureValue === 0) {
     // Collect a non-coin item if inventory has space
     if (updatedExplorer.otherItems.length < maxOtherItems(updatedExplorer)) {
+      const itemDef = getTileDefinition(tile.treasureType);
       updatedExplorer = {
         ...updatedExplorer,
         otherItems: [...updatedExplorer.otherItems, tile.treasureType],
-        hasBag: tile.treasureType === 'bag' ? true : updatedExplorer.hasBag,
-        hasShield: tile.treasureType === 'shield' ? true : updatedExplorer.hasShield,
-        hasBoat: tile.treasureType === 'boat' ? true : updatedExplorer.hasBoat,
+        ...(itemDef?.behavior === 'grants_equip' ? { [itemDef.equipFlag]: true } : {}),
       };
       mutableTiles.set(key, { ...tile, treasureType: 'none' });
     }

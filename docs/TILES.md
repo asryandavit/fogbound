@@ -1,7 +1,12 @@
 # FOGBOUND — Tile Data Registry
 
-Companion to Decision 081. Describes the target design for tile content and
-the concrete gap between it and what exists today.
+Companion to Decisions 081/082. Describes the tile registry's design and
+current implementation state.
+
+**Status: the registry exists** — `backend/src/colyseus/model/TileRegistry.ts`.
+`GameRules`/`BotAI`/`BoardSetup` all read it; none hardcode a tile-id string
+anymore. Not yet done: seeding it to Postgres, and the other 44 GDD tiles
+beyond the 6 entries below (see "What's left" at the bottom).
 
 ## Why: themes and the map editor both need this
 
@@ -13,73 +18,79 @@ code change in three places (rules, bot heuristic, client art mapping) —
 that cost is fine for 2 tiles (today) and not fine for 48 (the full GDD
 library).
 
-## Current baseline (what exists today, pre-registry)
+## Before the registry (historical — no longer true, kept for context)
 
-Tiles are just two free-form strings on `TileSchema`
+Tiles used to be just two free-form strings on `TileSchema`
 (`backend/src/colyseus/schemas/TileSchema.ts`): `tileType` (terrain) and
-`treasureType` (content), plus a numeric `treasureValue`. Nothing enforces
-what values are valid — a typo'd tile type would silently do nothing rather
-than fail. Concretely hardcoded today, each a separate thing to update if a
-tile is added:
+`treasureType` (content), plus a numeric `treasureValue` — still true of the
+wire format (Decision 043 pure-renderer boundary is unchanged), but the
+*server-side rules* no longer hardcode against these strings directly. The
+old pattern, now replaced: `GameRules.isValidMove` compared `tileType`
+directly to `'water'`; `GameRules.applyMove` had three individual
+`treasureType === 'bag'/'shield'/'boat'` checks; `BoardSetup.placeTreasure`
+hardcoded `'coin'`/`'shield'` literals and their spawn chances as module
+constants (`COIN_CHANCE`, `SHIELD_CHANCE`). `BotAI`'s heuristic already
+checked genericly ("is there anything pickup-worthy here") and needed no
+hardcoded-id fix, only a switch to reading the registry's `category`.
 
-- `GameRules.isValidMove`: `tile.tileType === 'water' && !explorer.hasBoat`
-  — one hardcoded terrain check.
-- `GameRules.applyMove`: three individual hardcoded equality checks —
-  `treasureType === 'bag'` → `hasBag = true`, `=== 'shield'` → `hasShield`,
-  `=== 'boat'` → `hasBoat`. A 4th equip-like item needs a 4th branch.
-- `BotAI.ts` heuristic: `treasureType !== 'none' && !== ''` for "is there
-  something pickup-worthy here," with no distinction between item kinds.
-- `BoardSetup.placeTreasure`: hardcodes `'coin'`/`'shield'` string literals
-  and their spawn chances (`COIN_CHANCE = 0.12`, `SHIELD_CHANCE = 0.03`)
-  directly in the placement loop.
-- Only 2 of the GDD's 48 tile types exist in any of the above (coins,
-  shields). Everything else in the Tile Library (GDD.md) is unimplemented.
+## Current design (implemented)
 
-This is the exact pattern Decision 081 replaces — not because it's broken
-today (it works fine for 2 tiles), but because it doesn't scale to 48.
-
-## Target design
-
-Every tile is a data record:
+`backend/src/colyseus/model/TileRegistry.ts` exports a discriminated union
+on `behavior` (mirrors `BotAction` in `BotAI.ts`, this codebase's existing
+pattern for this kind of tagged data):
 
 ```ts
-interface TileDefinition {
-  id: string;            // 'coin' | 'sword' | 'quicksand' | ... (48 total, GDD.md)
-  category: 'treasure' | 'movement' | 'terrain' | 'combat' | 'structure' | 'events' | 'alliance';
-  behavior: string;      // what it DOES — e.g. 'blocks_without_boat', 'grants_equip:hasShield',
-                          // 'grants_equip:hasBoat', 'score_on_pickup', 'combat_modifier', ...
-  spawnWeight: number;   // relative placement probability, replaces per-tile *_CHANCE constants
-  effectValue?: number;  // e.g. coin value range, damage, duration — behavior-specific
-}
+type TileCategory = 'terrain' | 'treasure' | 'combat_item' | 'movement' | 'hazard' | 'special';
+
+type TileEffect =
+  | { behavior: 'walkable' | 'blocks_without_boat' }
+  | { behavior: 'grants_equip'; equipFlag: 'hasShield' | 'hasBag' | 'hasBoat' }
+  | { behavior: 'treasure_value'; valueRange: readonly [number, number] };
+
+type TileDefinition = TileEffect & { id: string; category: TileCategory; spawnWeight: number };
 ```
 
-- Lives as a TypeScript registry (source of truth for types + IDE
-  autocomplete), seeded into a Postgres table on boot/migration so it's
-  queryable and editable without a code deploy (needed for the map editor
-  and any live-ops tuning later).
-- `GameRules` and `BotAI` branch on `category`/`behavior`, never on a
-  specific `id`. The three hardcoded `treasureType === 'bag'/'shield'/
-  'boat'` checks collapse into one generic "apply this tile's
-  `grants_equip:*` behavior" branch that works for any current or future
-  equip tile without a new `if`.
-- `BoardSetup.placeTreasure` draws from the registry's `spawnWeight`s
-  instead of hardcoded per-type constants — adding a new treasure tile
-  becomes a data entry, not a code change to the placement function.
-- The client stays exactly what it already is (Decision 043's pure-renderer
-  rule, unchanged): it still only ever receives `tileType`/`treasureType`
-  strings over the wire and maps `id -> art` via a per-theme resource. The
-  registry's `behavior`/`category`/`spawnWeight` are server-only — the
-  client never needs to know a tile's *behavior*, only how to draw it.
+**Category vocabulary note:** these 6 categories are deliberately NOT the
+same list as GDD.md's Tile Library table (`Treasure/Movement/Terrain/Combat/
+Structure/Events/Alliance`, 7 values, Title Case). GDD's list is a
+design-facing content catalog (which tier/table a tile ships in); this
+registry's categories are engine-facing tags `GameRules`/`BotAI` branch on
+in code. They're allowed to diverge — GDD answers "what is this tile,"
+this registry answers "how does the engine treat it" — but the mismatch is
+called out explicitly here so it doesn't read as an unreconciled error.
 
-## Migration shape (not yet started)
+Six entries exist today:
 
-1. Define the registry + all 48 GDD tiles as data (start with Tier 1's 20,
-   per GDD's own tiering).
-2. Seed to Postgres (new migration + Drizzle schema, following the existing
-   `node-pg-migrate` + Drizzle pattern in `backend/db/`).
-3. Replace the hardcoded checks listed above in `GameRules`/`BotAI`/
-   `BoardSetup` with registry lookups, one at a time, with the existing
-   Jest suite (`GameRules.spec.ts`, `BotAI.spec.ts`, `BoardSetup.spec.ts`)
-   as the regression guard — behavior for coin/shield must not change.
-4. Only then add genuinely new tiles (sword, water/boat, etc.) — adding them
-   post-migration means adding data records, not new code paths.
+| id | category | behavior | spawnWeight | notes |
+|---|---|---|---|---|
+| grass | terrain | walkable | 0 | the only terrain; not spawned via chance, GameRoom fills it unconditionally |
+| water | terrain | blocks_without_boat | 0 | catalog-only — nothing spawns it yet (Decision 082) |
+| coin | treasure | treasure_value, [1,3] | 0.12 | migrated unchanged from `COIN_CHANCE` |
+| shield | combat_item | grants_equip, hasShield | 0.03 | migrated unchanged from `SHIELD_CHANCE` |
+| bag | special | grants_equip, hasBag | 0 | catalog-only (Decision 082) |
+| boat | movement | grants_equip, hasBoat | 0 | catalog-only (Decision 082) |
+
+`getTileDefinition(id)` is the lookup `GameRules`/`BotAI` use instead of a
+literal-string comparison. `getSpawnableTreasureTiles()` returns the
+`spawnWeight > 0`, non-terrain entries in declaration order (coin, shield) —
+`BoardSetup.placeTreasure` walks this list as a cumulative-probability
+table, so that order is load-bearing (see `TileRegistry.spec.ts`'s explicit
+ordering test).
+
+**Known follow-up risk, not yet fixed:** the Godot client's tile-art swatch
+list (`godot/scenes/match/board/board_layer.gd`) already lists a `"sword"`
+nothing sends and has no swatch for `"bag"`/`"boat"`. Harmless while those
+stay at `spawnWeight: 0` — but the first task that gives either a nonzero
+weight needs a companion client fix, or this becomes an immediately visible
+rendering bug (silent fallback to plain terrain color).
+
+## What's left
+
+The registry mechanism is done; most of its *content* isn't:
+1. Seed to Postgres (still TypeScript-only right now) — needed for the map
+   editor / live-ops tuning to edit tiles without a code deploy.
+2. Add the other 44 GDD tiles as data (sword, water/boat as genuinely
+   spawnable, jungle/quicksand/ice/desert terrain, and so on) — each is now
+   a data entry, not a new `if` in three files, which was the point.
+3. Whenever water/boat becomes real content: fix the client art-swatch gap
+   above first (or it'll spawn invisibly).

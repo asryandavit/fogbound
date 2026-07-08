@@ -1315,3 +1315,23 @@ as the safety net. Verified: with `maxTurns` set small, a real match reaches
 tests cover cap-hit-with-treasure-remaining, below-cap, and 0=unlimited.
 Security: neutral — server-authoritative; the cap only affects when the
 server declares a winner.
+
+## 082 — Tile registry includes unreachable tiles as spawnWeight:0 catalog entries
+Status: Accepted | Date: 2026-07-08
+Context: Decision 081's registry refactor task explicitly scoped migration
+  to grass/coin/shield, but GameRules.ts has 4 hardcoded tile-id string
+  checks, not 3 — isValidMove's water check and applyMove's bag/boat equip
+  checks reference tiles nothing currently spawns.
+Decision: TileRegistry includes water/bag/boat as real entries with
+  spawnWeight: 0 (defined, never placed by placeTreasure) so GameRules can
+  be fully generic (category/behavior-driven, zero hardcoded tile-id
+  checks) rather than 3/4 generic and 1/4 still hardcoded.
+Alternatives considered: Leave water/bag/boat hardcoded, deferred to
+  whichever future task actually makes them spawnable — rejected: leaves
+  Decision 081's unconditional "never on a hardcoded tile id" only
+  partially satisfied, for zero effort saved (the entries are one-liners).
+Tradeoffs: None material — these tiles are unreachable in live play today
+  (placeTreasure never produces them), so this is pure catalog completion,
+  not new spawnable content.
+Consequences: docs/TILES.md.
+Supersedes / Related: 081.

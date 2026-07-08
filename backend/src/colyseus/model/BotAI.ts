@@ -1,5 +1,6 @@
 import { GameState, Coord, ExplorerState, PlayerState, tileKey } from './GameState';
 import { isValidMove, applyMove, checkWinCondition } from './GameRules';
+import { getTileDefinition } from './TileRegistry';
 
 export type BotAction =
   | { type: 'move'; explorerId: string; target: Coord }
@@ -198,7 +199,11 @@ function scoreMoveHeuristic(
   const tile = state.tiles.get(tileKey(target.x, target.y));
   if (tile) {
     if (tile.treasureValue > 0) score += 3 + tile.treasureValue;
-    else if (tile.treasureType !== 'none' && tile.treasureType !== '') score += 3;
+    // Must include 'treasure', not just 'combat_item': a fully-drained coin
+    // tile keeps treasureType:'coin'/treasureValue:0 (never reset), which
+    // reaches here too — narrowing to 'combat_item' only would silently stop
+    // scoring that (already-empty, harmless) case, not a new one.
+    else if (['treasure', 'combat_item'].includes(getTileDefinition(tile.treasureType)?.category ?? '')) score += 3;
     if (!tile.isRevealed) score += 0.5;
   }
 

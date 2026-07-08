@@ -145,6 +145,14 @@ describe('applyMove', () => {
     expect(next.tiles.get(tileKey(1, 1))!.treasureValue).toBe(0);
   });
 
+  it('picking up a shield tile grants hasShield', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(1, 1), makeTile(1, 1, { treasureType: 'shield', treasureValue: 0 }));
+    const state = makeState({ tiles });
+    const next = applyMove(state, 'e1', { x: 1, y: 1 });
+    expect(next.explorers.get('e1')!.hasShield).toBe(true);
+  });
+
   it('does not exceed max coin capacity', () => {
     const tiles = new Map(makeState().tiles);
     tiles.set(tileKey(1, 1), makeTile(1, 1, { treasureType: 'coin', treasureValue: 10 }));

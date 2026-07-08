@@ -485,6 +485,67 @@ row); docs/GODOT_CLIENT.md (folder structure, 4th autoload, Game Flow section).
 
 ---
 
+### Tile Data Registry Refactor ✅ DONE (2026-07-08)
+
+Context: first execution of Decision 081 — tiles move from hardcoded
+per-tile string checks to a data-driven registry, so themes and a future
+map editor won't need rules-engine changes per tile. Pure refactor: all 61
+pre-existing Jest tests required to pass unmodified, behavior bit-for-bit
+identical. Planned via full Plan Mode (Explore agent completeness sweep +
+Plan agent design critique) before any file was touched, per the task's
+explicit "stop after Plan Mode for approval" instruction.
+
+Files:
+- backend/src/colyseus/model/TileRegistry.ts (new) — discriminated-union
+  `TileDefinition` (mirrors `BotAction`'s existing pattern), 6 entries:
+  grass/water (terrain), coin (treasure), shield (combat_item, migrated
+  unchanged from `SHIELD_CHANCE`), bag (special), boat (movement). Only
+  coin/shield have nonzero spawnWeight; water/bag/boat are catalog-only
+  (Decision 082) so `GameRules` has zero remaining hardcoded tile-id checks,
+  not just 3 of 4.
+- backend/src/colyseus/model/BoardSetup.ts — `placeTreasure` now walks
+  `getSpawnableTreasureTiles()` as a cumulative-probability table instead of
+  two hardcoded `if`s; preserves the EXACT rng-call sequence per tile (one
+  roll; a second call only for `treasure_value` entries) so all 5 existing
+  `BoardSetup.spec.ts` tests pass completely unmodified.
+- backend/src/colyseus/model/GameRules.ts — `isValidMove`'s water check and
+  `applyMove`'s bag/shield/boat equip-granting now read the registry instead
+  of comparing literal strings.
+- backend/src/colyseus/model/BotAI.ts — heuristic checks tile `category`
+  (`'treasure'` or `'combat_item'`) instead of a raw non-empty-string check;
+  must include `'treasure'` for a subtle pre-existing reason (a fully-drained
+  coin tile keeps `treasureType:'coin'` forever, never reset — that state
+  already reached this branch before the refactor too), documented inline.
+
+Tests: backend/src/colyseus/model/TileRegistry.spec.ts (new, 5 tests —
+lookup, unknown-id, spawn order, and a direct assert that migrated
+spawnWeights equal the original 0.12/0.03 constants). One new test added to
+GameRules.spec.ts (shield pickup → hasShield; this path had zero coverage
+before). `BoardSetup.spec.ts` and `BotAI.spec.ts` — confirmed byte-for-byte
+unmodified via `git diff --quiet`, both still passing, which is the direct
+proof the refactor didn't change observable behavior.
+
+Done: `npx tsc --noEmit` clean; `npx jest` → 67/67 passed, 6 suites (61
+original + 6 new — 5 registry + 1 shield-pickup), original per-file test
+counts confirmed unchanged (BoardSetup.spec.ts and BotAI.spec.ts still
+exactly 5 each).
+
+Documentation: updated docs/DECISIONS.md (082 — water/bag/boat catalog-only
+inclusion, drafted and approved during Plan Mode before implementation);
+docs/TILES.md (status flipped from "target design" to "implemented,"
+category-vocabulary note added distinguishing the registry's 6 engine
+categories from GDD's 7 design categories, "what's left" section added:
+Postgres seeding and the other 44 GDD tiles are not yet done).
+
+Known follow-up, not addressed here (client explicitly out of scope): the
+Godot client's tile-art swatch list (`board_layer.gd`) is already out of
+sync with the server tile vocabulary (has a `"sword"` swatch nothing sends;
+no swatch for `"bag"`/`"boat"`) — harmless while those stay at
+`spawnWeight: 0`, but the first task that makes either spawnable needs a
+companion client fix or it'll render invisibly.
+
+---
+
 ### Godot↔Colyseus Spike ✅ (2026-06-16, branch: spike/godot-colyseus)
 
 **Verdict: Godot 4 CAN replace the Unity client.**
@@ -582,21 +643,22 @@ changes to the list below vs. what was previously planned:
   injectable) → device push-token storage → actual FCM/APNs delivery
   (**blocked on user-provided Firebase/APNs credentials** — everything
   before that step can be built without them).
-- **Tile data registry** — build the registry + migrate the 2 existing
-  hardcoded tiles (coin, shield) onto it FIRST (regression-guarded by the
-  existing Jest suite), THEN add new tiles (sword, water/boat, discovery
-  popup/Tilepedia) as data entries. Order matters — adding new tiles before
-  the registry exists means writing them twice. See docs/TILES.md.
-  Confirmed 2026-07-08: server-side only (TILES.md's design as written —
-  no client-side tile logic, matches Decision 043). Sequencing vs. art:
-  **blend** — tiles lead, but real-art swap-in for placeholder swatches can
-  start alongside once individual tiles stabilize, not gated on the full
-  registry/all 48 tiles finishing first. Verification standard for this
-  and future gameplay features: automated tests (Jest/GUT) first, **then an
-  in-person 2-device playtest as the final done-gate** — not automated
-  coverage alone (this project's history has repeatedly found real bugs,
-  e.g. the turnState sync bug, only visible with two real concurrent
-  clients).
+- ~~Tile data registry~~ ✅ done (2026-07-08 — see Tile Data Registry
+  Refactor above). Registry mechanism + coin/shield migration + zero
+  hardcoded tile-id checks in GameRules/BotAI/BoardSetup. **Still open:**
+  seed to Postgres, add the other 44 GDD tiles as data (sword, water/boat as
+  genuinely spawnable, discovery popup/Tilepedia) — see docs/TILES.md "What's
+  left." Sequencing vs. art stays **blend** — tiles lead, real-art swap-in
+  for placeholder swatches can start alongside once individual tiles
+  stabilize, not gated on all 48 finishing first. Verification standard for
+  this and future gameplay features: automated tests (Jest/GUT) first,
+  **then an in-person 2-device playtest as the final done-gate** — not
+  automated coverage alone (this project's history has repeatedly found
+  real bugs, e.g. the turnState sync bug, only visible with two real
+  concurrent clients). This task's own automated tests are done; the
+  in-person playtest is still outstanding (this session ran a headless
+  live-verification pass against the real backend instead — see below —
+  which is a substitute, not a replacement, for an actual human playtest).
 - Player accounts wired to the Godot client (NestJS auth exists — Google/
   Apple/JWT — but the client doesn't use it yet; every match is anonymous).
   Also a prerequisite for async play (a match needs to find you when you're
