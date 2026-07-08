@@ -73,6 +73,48 @@ possible without duplicating rules logic). The async path is a second
    through that same parameter is most of what's needed board-side; the
    challenge/leaderboard wrapper around it does not exist.
 
+## Identity: Guest-First Auth (Decision 083)
+
+On first launch, the client silently gets an anonymous player
+(`authProvider='guest'`, a server-generated UUID as `providerId`) and a JWT
+— play starts with zero friction. Linking Google/Apple later upgrades the
+SAME player row in place (same `id`, same progress), swapping
+`authProvider`/`providerId` to the real provider, prompted at a natural
+moment (first win / add-friend / cross-device / purchase).
+
+**Not yet implemented** — today `AuthController` only has `/auth/google` and
+`/auth/apple`; there is no guest-login endpoint and no link-in-place
+endpoint. The `players` table's `authProvider`/`providerId` columns are
+already plain `varchar`s (no CHECK constraint), so a `'guest'` value itself
+needs no migration — but see the schema issue below, which does.
+
+### Security: confirmed, currently-exploitable auth bypass (blocks Decision 083)
+
+Read directly from `backend/src/auth/auth.service.ts` on 2026-07-08, not
+inferred from the decision text:
+
+1. **`appleLogin` (lines 96-117) never cryptographically verifies the Apple
+   identity token.** It base64-decodes the JWT's payload segment and trusts
+   whatever `sub` it finds — no signature check against Apple's public keys,
+   and no verification library (`jose`, `jwks-rsa`, etc.) is even installed.
+   Anyone can POST a self-forged token with any `sub` value they choose.
+2. **`findOrCreatePlayer` (lines 32-62) looks up an existing player by
+   `providerId` alone** (`where(eq(playersTable.providerId, providerId))`),
+   never scoped by `authProvider` too. Combined with #1: a forged Apple
+   token whose fake `sub` matches a real Google user's `providerId` logs the
+   attacker in AS that existing player — a full account takeover, not just
+   impersonation of a new identity. `providerId` also has a **single-column
+   `UNIQUE` constraint** (`players.schema.ts`), not a composite unique on
+   `(authProvider, providerId)` — so even a corrected, provider-scoped
+   lookup would still need a schema/migration fix to stop a genuine
+   collision from throwing a DB error at insert time.
+
+This is the "Apple token-verification fix" Decision 083 names as a
+prerequisite ("Decision-085 follow-up") — confirmed real and, if anything,
+broader than a single-provider issue. Decision 085's actual content hasn't
+been provided yet; this section will need reconciling against it once it
+has.
+
 ## Non-goals (explicitly not changing)
 
 - Live PvP (`GameRoom`, Colyseus) is untouched by this decision — the

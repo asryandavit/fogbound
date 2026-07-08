@@ -14,7 +14,8 @@ Inspired by Jackal board game mechanics but fully original.
 - Database:        PostgreSQL (latest stable)
 - Cache:           Redis (latest stable)
 - Mobile:          Unity builds natively to iOS and Android
-- Auth:            JWT + Google/Apple Sign-In
+- Auth:            JWT + guest-first (anonymous on first launch,
+                   Google/Apple Sign-In optional, linked later — Decision 083)
 - Container:       Docker via OrbStack on Mac
 
 ## Unity Package Stack (Decided)

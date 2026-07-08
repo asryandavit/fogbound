@@ -1335,3 +1335,26 @@ Tradeoffs: None material — these tiles are unreachable in live play today
   not new spawnable content.
 Consequences: docs/TILES.md.
 Supersedes / Related: 081.
+
+## 083 — Guest-first auth, optional provider linking
+Status: Accepted | Date: 2026-07-08
+Context: Async friend play, leaderboards, and later cosmetic IAP all need a
+  stable player identity, but gating first play behind Google/Apple login kills
+  mobile conversion. Apple guideline 4.8 also requires Sign in with Apple
+  wherever Google login is offered on iOS.
+Decision: On first launch the client silently creates an anonymous player
+  (authProvider='guest', providerId = server-generated UUID) and receives a JWT
+  — play starts with zero friction. The player is prompted to link Google or
+  Apple at a natural moment (first win / add-friend / cross-device / purchase);
+  linking upgrades the SAME player row in place (preserves id + progress),
+  swapping authProvider and providerId to the real provider.
+Alternatives considered: (a) Require login before play — rejected: conversion
+  killer. (b) Device-id only, no providers — rejected: no cross-device, no
+  purchase restore.
+Tradeoffs: A guest can lose their account if they never link and lose the
+  device; accepted, mitigated by nudging linking. Slightly more auth surface.
+Consequences: players schema migration (allow 'guest' + nullable-until-linked
+  provider fields); new guest-login endpoint; link-in-place endpoint; the Apple
+  token-verification fix (Decision-085 follow-up / security debt below) must
+  land before any provider login ships.
+Supersedes / Related: CONTEXT.md auth rules; INFRA.md.
