@@ -82,6 +82,10 @@ SAME player row in place (same `id`, same progress), swapping
 `authProvider`/`providerId` to the real provider, prompted at a natural
 moment (first win / add-friend / cross-device / purchase).
 
+Guest identity anchoring, cross-device/reinstall behavior, and the
+composite `(authProvider, providerId)` key that closes the account-takeover
+bug below are specified in Decision 084.
+
 **Not yet implemented** — today `AuthController` only has `/auth/google` and
 `/auth/apple`; there is no guest-login endpoint and no link-in-place
 endpoint. The `players` table's `authProvider`/`providerId` columns are

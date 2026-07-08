@@ -1358,3 +1358,34 @@ Consequences: players schema migration (allow 'guest' + nullable-until-linked
   token-verification fix (Decision-085 follow-up / security debt below) must
   land before any provider login ships.
 Supersedes / Related: CONTEXT.md auth rules; INFRA.md.
+
+## 084 — Guest account implementation (secure-token, link-to-persist)
+Status: Accepted | Date: 2026-07-08
+Context: Decision 083 sets guest-first policy. This settles how a guest identity
+  is anchored, given players may return on the same install, reinstall, use a
+  second device (Android/iOS), and — later — a web client.
+Decision:
+  - A guest is a real players row: authProvider='guest', providerId = a
+    server-generated UUID. Identity is keyed by the composite
+    (authProvider, providerId), never providerId alone.
+  - The client persists a long-lived refresh token in OS secure storage
+    (Keychain/iOS, Keystore/Android; secure cookie on future web). This reclaims
+    the SAME account across app restart and logout→guest-again on that install.
+  - Guest is intentionally EPHEMERAL on uninstall at launch — no silent platform
+    anchor yet. A reinstalled guest is a new account unless a provider was linked.
+  - Reinstall-survival, cross-device, cross-platform, and web all require a
+    LINKED provider (Google works everywhere; Apple covers iOS + web + Android
+    via web flow). Linking upgrades the same row in place (id + progress kept).
+  - Link is nudged at natural moments (first win / add friend / cross-device /
+    purchase), never forced before first play.
+Alternatives considered: (a) Device-id-only guest — rejected: no cross-device,
+  lost on reinstall with no recovery path. (b) Game Center + Play Games silent
+  anchors now — deferred: real integration cost, better post-launch.
+Tradeoffs: An unlinked guest who uninstalls loses progress; accepted, mitigated
+  by the link nudge. Buys a far simpler launch auth surface.
+Consequences: Schema migration — allow auth_provider='guest' and replace the
+  single-column UNIQUE(provider_id) with a composite UNIQUE(auth_provider,
+  provider_id). New endpoints: guest login, link-in-place. Refresh-token
+  issuance + secure client storage. The provider-scoped lookup this mandates
+  also closes the account-takeover bug (fixed in the next step).
+Supersedes / Related: 083; CONTEXT.md auth rules; INFRA.md security note.
