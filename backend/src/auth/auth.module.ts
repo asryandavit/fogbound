@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { AppleTokenService } from './apple-token.service';
 import { DatabaseModule } from '../database/database.module';
 
 @Module({
@@ -23,7 +24,7 @@ import { DatabaseModule } from '../database/database.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, AppleTokenService],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

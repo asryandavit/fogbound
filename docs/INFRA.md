@@ -92,10 +92,21 @@ endpoint. The `players` table's `authProvider`/`providerId` columns are
 already plain `varchar`s (no CHECK constraint), so a `'guest'` value itself
 needs no migration — but see the schema issue below, which does.
 
-### Security: confirmed, currently-exploitable auth bypass (blocks Decision 083)
+### Security: auth bypass — FIXED (Decision 085)
+
+**Status: fixed as of 2026-07-08 (Decision 085).** `appleLogin` now verifies
+the identity token's signature against Apple's live JWKS via `jose`
+(`backend/src/auth/apple-token.service.ts`), and `findOrCreatePlayer` looks
+up players by the composite `(authProvider, providerId)`
+(`backend/src/auth/auth.service.ts`), backed by a matching composite
+`UNIQUE` constraint at the database level (migration 010). The account-
+takeover scenario described below is covered by a regression test
+(`backend/src/auth/auth.service.spec.ts`) that runs against a real
+Postgres-compatible engine, not a mock. Original finding kept below for
+context — it was accurate at the time and is what Decision 085 fixes.
 
 Read directly from `backend/src/auth/auth.service.ts` on 2026-07-08, not
-inferred from the decision text:
+inferred from the decision text (this was the state BEFORE the fix):
 
 1. **`appleLogin` (lines 96-117) never cryptographically verifies the Apple
    identity token.** It base64-decodes the JWT's payload segment and trusts
@@ -113,11 +124,9 @@ inferred from the decision text:
    lookup would still need a schema/migration fix to stop a genuine
    collision from throwing a DB error at insert time.
 
-This is the "Apple token-verification fix" Decision 083 names as a
+This was the "Apple token-verification fix" Decision 083 named as a
 prerequisite ("Decision-085 follow-up") — confirmed real and, if anything,
-broader than a single-provider issue. Decision 085's actual content hasn't
-been provided yet; this section will need reconciling against it once it
-has.
+broader than a single-provider issue. See Decision 085 for the fix.
 
 ## Non-goals (explicitly not changing)
 

@@ -4,7 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { DatabaseService } from '../database/database.service';
 import { playersTable, NewPlayer } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { AppleTokenService } from './apple-token.service';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +15,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly databaseService: DatabaseService,
+    private readonly appleTokenService: AppleTokenService,
   ) {
     this.googleClient = new OAuth2Client(
       configService.get<string>('GOOGLE_CLIENT_ID'),
@@ -40,7 +42,7 @@ export class AuthService {
     const existing = await db
       .select()
       .from(playersTable)
-      .where(eq(playersTable.providerId, providerId))
+      .where(and(eq(playersTable.authProvider, authProvider), eq(playersTable.providerId, providerId)))
       .limit(1);
 
     if (existing.length > 0) {
@@ -100,12 +102,7 @@ export class AuthService {
     let providerId: string;
 
     try {
-      const parts = token.split('.');
-      const decoded = JSON.parse(
-        Buffer.from(parts[1], 'base64').toString('utf8'),
-      ) as { sub?: string };
-      if (!decoded.sub) throw new Error('Missing sub');
-      providerId = decoded.sub;
+      providerId = await this.appleTokenService.verify(token);
     } catch {
       throw new UnauthorizedException('Invalid Apple token');
     }

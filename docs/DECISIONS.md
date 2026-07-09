@@ -1389,3 +1389,50 @@ Consequences: Schema migration — allow auth_provider='guest' and replace the
   issuance + secure client storage. The provider-scoped lookup this mandates
   also closes the account-takeover bug (fixed in the next step).
 Supersedes / Related: 083; CONTEXT.md auth rules; INFRA.md security note.
+
+## 085 — Apple token verification + provider-scoped player lookup
+Status: Accepted | Date: 2026-07-08
+Context: Live authentication bypass confirmed in `AuthService` (flagged
+  during Decision 083/084 work): `appleLogin` base64-decoded the identity
+  token's payload and trusted `sub` with zero signature verification (no
+  library installed); `findOrCreatePlayer` looked up existing players by
+  `providerId` alone, not `(authProvider, providerId)`. Combined, a forged
+  Apple token whose fake `sub` matched a real Google user's `providerId`
+  logged the attacker in as that player — full account takeover.
+Decision: `appleLogin` verifies the identity token's signature against
+  Apple's live JWKS, checks `iss === 'https://appleid.apple.com'`, `aud`
+  against `APPLE_CLIENT_ID` from config (never hardcoded), and expiry, via
+  `jose` (pinned `^5.10.0` — v6 is ESM-only, breaks this project's
+  CommonJS build). `findOrCreatePlayer` now queries by the composite
+  `(authProvider, providerId)`, matching Decision 084's identity model.
+  `players.provider_id`'s single-column `UNIQUE` (migration 001) is
+  replaced with a composite `UNIQUE(auth_provider, provider_id)`
+  (migration 010) so the database enforces the same invariant the
+  application code does.
+Alternatives considered: `apple-signin-auth` (a higher-level library
+  wrapping the same verification) — rejected: its internals aren't
+  independently injectable, so real-signature test coverage would need
+  either HTTP-mocking Apple's JWKS endpoint (heavier, more brittle) or
+  testing against a mock instead of real cryptographic verification.
+  `jose`'s explicit JWKS-resolver seam allows genuine signature
+  verification in tests against a locally generated test keypair.
+Tradeoffs: One new runtime dependency (`jose`) and one new devDependency
+  (`@electric-sql/pglite`, an in-memory Postgres-compatible engine) to
+  test the composite-lookup fix and the migration's constraint against
+  real SQL execution rather than a hand-rolled fake — this codebase had
+  zero prior DB-integration-test precedent; this establishes the first one.
+  Also required enabling Node's `--experimental-vm-modules` flag for the
+  test runner (`backend/package.json`'s `test`/`test:watch`/`test:cov`
+  scripts) — pglite's WASM loading needs it; confirmed additive, doesn't
+  change how any existing (non-pglite) test runs.
+Consequences: `docs/INFRA.md` security note updated to reflect the fix
+  landing; `backend/.env.example` and `docker/docker-compose.yml` gain
+  `APPLE_CLIENT_ID`. Guest login and link-in-place endpoints (Decision
+  084) remain out of scope for this task, as instructed. A pre-existing,
+  unrelated bug noticed but not fixed here: Apple only sends `fullName` on
+  a user's first-ever authorization, so any sign-in that omits a name
+  falls back to a fixed `'Apple User'`/`'Google User'` string, which can
+  collide on `players.username`'s UNIQUE constraint — not a regression
+  from this fix, tracked here so it isn't lost.
+Supersedes / Related: 083, 084 (this is the fix those decisions named as
+  a prerequisite/follow-up).
