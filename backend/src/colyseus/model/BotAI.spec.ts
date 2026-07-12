@@ -22,6 +22,7 @@ function makeExplorer(id: string, playerId: string, x: number, y: number, overri
     hasBag: false,
     hasBoat: false,
     hasShield: false,
+    immobilizedUntilTurn: 0,
     ...overrides,
   };
 }

@@ -310,6 +310,7 @@ export class GameRoom extends Room<{ state: FogboundState }> {
         hasBag: e.hasBag,
         hasBoat: e.hasBoat,
         hasShield: e.hasShield,
+        immobilizedUntilTurn: e.immobilizedUntilTurn,
       });
     }
 
@@ -364,6 +365,7 @@ export class GameRoom extends Room<{ state: FogboundState }> {
       if (schema.hasBag !== e.hasBag) schema.hasBag = e.hasBag;
       if (schema.hasBoat !== e.hasBoat) schema.hasBoat = e.hasBoat;
       if (schema.hasShield !== e.hasShield) schema.hasShield = e.hasShield;
+      if (schema.immobilizedUntilTurn !== e.immobilizedUntilTurn) schema.immobilizedUntilTurn = e.immobilizedUntilTurn;
     }
 
     for (const [k, p] of next.players) {

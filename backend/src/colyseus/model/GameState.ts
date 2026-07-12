@@ -22,6 +22,7 @@ export interface ExplorerState {
   readonly hasBag: boolean;
   readonly hasBoat: boolean;
   readonly hasShield: boolean;
+  readonly immobilizedUntilTurn: number; // 0 = free; blocked while state.turn.turnNumber <= this
 }
 
 export interface PlayerState {

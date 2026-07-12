@@ -11,6 +11,7 @@ export class ExplorerSchema extends Schema {
   @type('boolean') hasBag: boolean = false
   @type('boolean') hasBoat: boolean = false
   @type('boolean') hasShield: boolean = false
+  @type('number') immobilizedUntilTurn: number = 0
   @type('boolean') isBot: boolean = false
   @type('number') botMoveCount: number = 0
 }
