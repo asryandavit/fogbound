@@ -8,7 +8,7 @@ import {
   maxCoins,
   maxOtherItems,
 } from './GameState';
-import { getTileDefinition } from './TileRegistry';
+import { getTileDefinition, directionDelta } from './TileRegistry';
 
 function cloneState(state: GameState): {
   tiles: Map<string, TileState>;
@@ -22,6 +22,49 @@ function cloneState(state: GameState): {
   };
 }
 
+function revealTile(mutableTiles: Map<string, TileState>, x: number, y: number): void {
+  const k = tileKey(x, y);
+  const t = mutableTiles.get(k);
+  if (t && !t.isRevealed) mutableTiles.set(k, { ...t, isRevealed: true });
+}
+
+function collectFromTile(
+  explorer: ExplorerState,
+  landX: number,
+  landY: number,
+  mutableTiles: Map<string, TileState>,
+  mutablePlayers: Map<string, PlayerState>,
+): ExplorerState {
+  const k = tileKey(landX, landY);
+  const tile = mutableTiles.get(k);
+  const player = mutablePlayers.get(explorer.playerId)!;
+  const atBase = landX === player.baseX && landY === player.baseY;
+
+  if (atBase && (explorer.coinCount > 0 || explorer.otherItems.length > 0)) {
+    const scored = explorer.coinCount + explorer.otherItems.length;
+    mutablePlayers.set(explorer.playerId, { ...player, score: player.score + scored });
+    return { ...explorer, coinCount: 0, otherItems: [] };
+  }
+  if (tile && tile.treasureValue > 0) {
+    const pick = Math.min(tile.treasureValue, maxCoins(explorer) - explorer.coinCount);
+    if (pick > 0) {
+      mutableTiles.set(k, { ...tile, treasureValue: tile.treasureValue - pick });
+      return { ...explorer, coinCount: explorer.coinCount + pick };
+    }
+  } else if (tile && tile.treasureType !== 'none' && tile.treasureType !== '' && tile.treasureValue === 0) {
+    const def = getTileDefinition(tile.treasureType);
+    if (def?.behavior === 'grants_equip' && explorer.otherItems.length < maxOtherItems(explorer)) {
+      mutableTiles.set(k, { ...tile, treasureType: 'none' });
+      return {
+        ...explorer,
+        otherItems: [...explorer.otherItems, tile.treasureType],
+        ...(def.behavior === 'grants_equip' ? { [def.equipFlag]: true } : {}),
+      };
+    }
+  }
+  return explorer;
+}
+
 export function isValidMove(
   state: GameState,
   explorerId: string,
@@ -30,6 +73,8 @@ export function isValidMove(
   const explorer = state.explorers.get(explorerId);
   if (!explorer) return false;
   if (explorer.playerId !== state.turn.currentPlayerId) return false;
+
+  if (explorer.immobilizedUntilTurn > 0 && state.turn.turnNumber <= explorer.immobilizedUntilTurn) return false;
 
   const dx = Math.abs(explorer.x - target.x);
   const dy = Math.abs(explorer.y - target.y);
@@ -107,7 +152,6 @@ export function applyMove(
   for (const [otherId, other] of explorers) {
     if (otherId !== explorerId && other.x === target.x && other.y === target.y && other.playerId !== explorer.playerId) {
       workingState = resolveCombat(workingState, explorerId, otherId);
-      // After combat, re-read mutable maps
       explorer = workingState.explorers.get(explorerId)!;
       break;
     }
@@ -117,41 +161,55 @@ export function applyMove(
   const mutableTiles = new Map(workingState.tiles);
   const mutablePlayers = new Map(workingState.players);
 
-  // Move explorer
+  // Move explorer to target
   let updatedExplorer: ExplorerState = { ...explorer, x: target.x, y: target.y };
 
-  // Reveal tile
-  let tile = mutableTiles.get(key);
-  if (tile && !tile.isRevealed) {
-    tile = { ...tile, isRevealed: true };
-    mutableTiles.set(key, tile);
-  }
+  // Reveal tile and snapshot it before collection modifies it
+  revealTile(mutableTiles, target.x, target.y);
+  const tile = mutableTiles.get(key);
 
-  const player = mutablePlayers.get(explorer.playerId)!;
-  const atBase = target.x === player.baseX && target.y === player.baseY;
+  // Collect coins/equip at landing tile (arrow/cannon/trap are NOT consumed)
+  updatedExplorer = collectFromTile(updatedExplorer, target.x, target.y, mutableTiles, mutablePlayers);
 
-  if (atBase && (updatedExplorer.coinCount > 0 || updatedExplorer.otherItems.length > 0)) {
-    // Score inventory on base return
-    const scored = updatedExplorer.coinCount + updatedExplorer.otherItems.length;
-    mutablePlayers.set(explorer.playerId, { ...player, score: player.score + scored });
-    updatedExplorer = { ...updatedExplorer, coinCount: 0, otherItems: [] };
-  } else if (tile && tile.treasureValue > 0) {
-    // Collect coins from tile
-    const canPickUp = Math.min(tile.treasureValue, maxCoins(updatedExplorer) - updatedExplorer.coinCount);
-    if (canPickUp > 0) {
-      updatedExplorer = { ...updatedExplorer, coinCount: updatedExplorer.coinCount + canPickUp };
-      mutableTiles.set(key, { ...tile, treasureValue: tile.treasureValue - canPickUp });
+  // Apply tile special effects after collection
+  const landedTileDef = tile ? getTileDefinition(tile.treasureType) : undefined;
+
+  if (landedTileDef?.behavior === 'immobilize') {
+    updatedExplorer = {
+      ...updatedExplorer,
+      immobilizedUntilTurn: state.turn.turnNumber + state.players.size,
+    };
+  } else if (landedTileDef?.behavior === 'arrow_push' || landedTileDef?.behavior === 'cannon_launch') {
+    const { dx, dy } = directionDelta((landedTileDef as { direction: 'north' | 'south' | 'east' | 'west' }).direction);
+    let landX = target.x;
+    let landY = target.y;
+
+    if (landedTileDef.behavior === 'arrow_push') {
+      const nx = target.x + dx;
+      const ny = target.y + dy;
+      if (nx >= 0 && nx < state.gridCols && ny >= 0 && ny < state.gridRows) {
+        const pushTile = mutableTiles.get(tileKey(nx, ny));
+        const pushDef = pushTile ? getTileDefinition(pushTile.tileType) : undefined;
+        if (pushDef?.behavior !== 'blocks_without_boat' || updatedExplorer.hasBoat) {
+          landX = nx; landY = ny;
+        }
+      }
+    } else {
+      // cannon_launch: scan to last walkable tile in direction
+      let cx = target.x + dx, cy = target.y + dy;
+      while (cx >= 0 && cx < state.gridCols && cy >= 0 && cy < state.gridRows) {
+        const scanTile = mutableTiles.get(tileKey(cx, cy));
+        const scanDef = scanTile ? getTileDefinition(scanTile.tileType) : undefined;
+        if (scanDef?.behavior === 'blocks_without_boat' && !updatedExplorer.hasBoat) break;
+        landX = cx; landY = cy;
+        cx += dx; cy += dy;
+      }
     }
-  } else if (tile && tile.treasureType !== 'none' && tile.treasureType !== '' && tile.treasureValue === 0) {
-    // Collect a non-coin item if inventory has space
-    if (updatedExplorer.otherItems.length < maxOtherItems(updatedExplorer)) {
-      const itemDef = getTileDefinition(tile.treasureType);
-      updatedExplorer = {
-        ...updatedExplorer,
-        otherItems: [...updatedExplorer.otherItems, tile.treasureType],
-        ...(itemDef?.behavior === 'grants_equip' ? { [itemDef.equipFlag]: true } : {}),
-      };
-      mutableTiles.set(key, { ...tile, treasureType: 'none' });
+
+    if (landX !== target.x || landY !== target.y) {
+      revealTile(mutableTiles, landX, landY);
+      updatedExplorer = collectFromTile(updatedExplorer, landX, landY, mutableTiles, mutablePlayers);
+      updatedExplorer = { ...updatedExplorer, x: landX, y: landY };
     }
   }
 

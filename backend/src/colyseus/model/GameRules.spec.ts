@@ -303,3 +303,123 @@ describe('checkWinCondition', () => {
     expect(checkWinCondition(state)).toBeNull();
   });
 });
+
+// ─── isValidMove: immobilized ─────────────────────────────────────────────
+
+describe('isValidMove: immobilized explorer', () => {
+  it('rejects all moves for an immobilized explorer', () => {
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 1, 0, { immobilizedUntilTurn: 5 }));
+    const state = makeState({ explorers, turn: { currentPlayerId: 'p1', turnNumber: 3, phase: 'move' } });
+    expect(isValidMove(state, 'e1', { x: 1, y: 1 })).toBe(false);
+  });
+
+  it('allows moves once turnNumber exceeds immobilizedUntilTurn', () => {
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 1, 0, { immobilizedUntilTurn: 2 }));
+    const state = makeState({ explorers, turn: { currentPlayerId: 'p1', turnNumber: 3, phase: 'move' } });
+    expect(isValidMove(state, 'e1', { x: 1, y: 1 })).toBe(true);
+  });
+});
+
+// ─── applyMove: trap ──────────────────────────────────────────────────────
+
+describe('applyMove: trap', () => {
+  it('sets immobilizedUntilTurn = turnNumber + playerCount on trap landing', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(1, 1), makeTile(1, 1, { treasureType: 'trap' }));
+    // makeState has 2 players; turnNumber=1 → immobilizedUntilTurn = 1+2 = 3
+    const state = makeState({ tiles });
+    const next = applyMove(state, 'e1', { x: 1, y: 1 });
+    expect(next.explorers.get('e1')!.immobilizedUntilTurn).toBe(3);
+  });
+
+  it('explorer is free after the immobilized turn passes', () => {
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 1, 0, { immobilizedUntilTurn: 3 }));
+    const state = makeState({ explorers, turn: { currentPlayerId: 'p1', turnNumber: 4, phase: 'move' } });
+    expect(isValidMove(state, 'e1', { x: 1, y: 1 })).toBe(true);
+  });
+
+  it('trap does not get picked up as an item', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(1, 1), makeTile(1, 1, { treasureType: 'trap' }));
+    const state = makeState({ tiles });
+    const next = applyMove(state, 'e1', { x: 1, y: 1 });
+    expect(next.explorers.get('e1')!.otherItems).not.toContain('trap');
+    // trap tile stays in place (permanent)
+    expect(next.tiles.get(tileKey(1, 1))!.treasureType).toBe('trap');
+  });
+});
+
+// ─── applyMove: arrow ─────────────────────────────────────────────────────
+
+describe('applyMove: arrow', () => {
+  it('arrow_south pushes explorer one tile south', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(1, 1), makeTile(1, 1, { treasureType: 'arrow_south' }));
+    const state = makeState({ tiles });
+    const next = applyMove(state, 'e1', { x: 1, y: 1 });
+    expect(next.explorers.get('e1')!.x).toBe(1);
+    expect(next.explorers.get('e1')!.y).toBe(2);  // pushed south
+  });
+
+  it('arrow into board edge: explorer stays on arrow tile', () => {
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 2, 1));
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(2, 0), makeTile(2, 0, { treasureType: 'arrow_north' }));
+    const state = makeState({ tiles, explorers });
+    const next = applyMove(state, 'e1', { x: 2, y: 0 });
+    // push target (2,-1) is OOB — stay at (2,0)
+    expect(next.explorers.get('e1')!.y).toBe(0);
+  });
+
+  it('arrow push reveals the landing tile', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(1, 1), makeTile(1, 1, { treasureType: 'arrow_south' }));
+    // (1,2) starts unrevealed
+    const state = makeState({ tiles });
+    expect(state.tiles.get(tileKey(1, 2))!.isRevealed).toBe(false);
+    const next = applyMove(state, 'e1', { x: 1, y: 1 });
+    expect(next.tiles.get(tileKey(1, 2))!.isRevealed).toBe(true);
+  });
+});
+
+// ─── applyMove: cannon ────────────────────────────────────────────────────
+
+describe('applyMove: cannon', () => {
+  it('cannon_south launches to last valid tile before board edge', () => {
+    const tiles = new Map(makeState().tiles); // 5×5
+    tiles.set(tileKey(2, 1), makeTile(2, 1, { treasureType: 'cannon_south' }));
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 2, 0));
+    const state = makeState({ tiles, explorers });
+    const next = applyMove(state, 'e1', { x: 2, y: 1 });
+    // scans y=2,3,4 — all grass — last valid = y=4 (board rows=5, last is 4)
+    expect(next.explorers.get('e1')!.y).toBe(4);
+  });
+
+  it('cannon stopped by water tile — lands on tile before water', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(2, 1), makeTile(2, 1, { treasureType: 'cannon_south' }));
+    tiles.set(tileKey(2, 3), makeTile(2, 3, { tileType: 'water' })); // blocking at y=3
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 2, 0));
+    const state = makeState({ tiles, explorers });
+    const next = applyMove(state, 'e1', { x: 2, y: 1 });
+    // scans y=2 (grass → landY=2), y=3 (water → break) → lands at y=2
+    expect(next.explorers.get('e1')!.y).toBe(2);
+  });
+
+  it('cannon with nothing to hit (already at edge): explorer stays on cannon tile', () => {
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(2, 0), makeTile(2, 0, { treasureType: 'cannon_north' }));
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 2, 1));
+    const state = makeState({ tiles, explorers });
+    const next = applyMove(state, 'e1', { x: 2, y: 0 });
+    // scan starts at (2,-1) which is OOB — loop never runs — landY stays at 0
+    expect(next.explorers.get('e1')!.y).toBe(0);
+  });
+});
