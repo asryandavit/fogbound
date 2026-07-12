@@ -139,6 +139,53 @@ describe('chooseBotAction', () => {
     expect(action).toEqual({ type: 'end_turn' });
   });
 
+  it('does not move an immobilized explorer (returns end_turn or moves another)', () => {
+    const tiles = new Map<string, TileState>();
+    for (let x = 0; x < 5; x++)
+      for (let y = 0; y < 5; y++) tiles.set(tileKey(x, y), makeTile(x, y));
+
+    const state: GameState = {
+      matchId: 'test', status: 'in_progress', gridCols: 5, gridRows: 5,
+      tiles,
+      explorers: new Map([
+        ['e1', makeExplorer('e1', 'bot', 2, 2, { immobilizedUntilTurn: 5 })],
+      ]),
+      players: new Map([
+        ['bot', makePlayer('bot', 1, 2, 4)],
+        ['human', makePlayer('human', 0, 2, 0)],
+      ]),
+      turn: { currentPlayerId: 'bot', turnNumber: 3, phase: 'move' },
+      winCondition: 'all_treasure',
+    };
+
+    const action = chooseBotAction(state, 'bot', noRandomRng());
+    // e1 is immobilized until turn 5, turnNumber=3 → no legal moves → end_turn
+    expect(action.type).toBe('end_turn');
+  });
+
+  it('avoids stepping on a trap tile when a neutral move is available', () => {
+    const tiles = new Map<string, TileState>();
+    for (let x = 0; x < 5; x++)
+      for (let y = 0; y < 5; y++) tiles.set(tileKey(x, y), makeTile(x, y));
+    tiles.set(tileKey(2, 3), makeTile(2, 3, { treasureType: 'trap' }));
+
+    const state: GameState = {
+      matchId: 'test', status: 'in_progress', gridCols: 5, gridRows: 5,
+      tiles,
+      explorers: new Map([['e1', makeExplorer('e1', 'bot', 2, 2)]]),
+      players: new Map([
+        ['bot', makePlayer('bot', 1, 2, 4)],
+        ['human', makePlayer('human', 0, 2, 0)],
+      ]),
+      turn: { currentPlayerId: 'bot', turnNumber: 1, phase: 'move' },
+      winCondition: 'all_treasure',
+    };
+
+    const action = chooseBotAction(state, 'bot', noRandomRng());
+    // trap is directly south; bot should prefer any other direction
+    expect(action).not.toEqual({ type: 'move', explorerId: 'e1', target: { x: 2, y: 3 } });
+  });
+
   it('always returns a legal action across a variety of states without throwing', () => {
     for (let trial = 0; trial < 10; trial++) {
       const tiles = new Map<string, TileState>();

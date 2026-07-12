@@ -1,6 +1,6 @@
 import { GameState, Coord, ExplorerState, PlayerState, tileKey } from './GameState';
 import { isValidMove, applyMove, checkWinCondition } from './GameRules';
-import { getTileDefinition } from './TileRegistry';
+import { getTileDefinition, directionDelta } from './TileRegistry';
 
 export type BotAction =
   | { type: 'move'; explorerId: string; target: Coord }
@@ -207,10 +207,41 @@ function scoreMoveHeuristic(
     if (!tile.isRevealed) score += 0.5;
   }
 
+  // Compute effective landing position after arrow/cannon tile effects,
+  // and apply trap penalty (immobilize = lose next turn = -4 opportunity cost).
+  let effectiveX = target.x;
+  let effectiveY = target.y;
+  if (tile) {
+    const def = getTileDefinition(tile.treasureType);
+    if (def?.behavior === 'immobilize') {
+      score -= 4;
+    } else if (def?.behavior === 'arrow_push') {
+      const { dx, dy } = directionDelta((def as any).direction);
+      const nx = target.x + dx, ny = target.y + dy;
+      if (nx >= 0 && nx < state.gridCols && ny >= 0 && ny < state.gridRows) {
+        const nextT = state.tiles.get(tileKey(nx, ny));
+        const nextDef = nextT ? getTileDefinition(nextT.tileType) : undefined;
+        if (nextDef?.behavior !== 'blocks_without_boat' || explorer.hasBoat) {
+          effectiveX = nx; effectiveY = ny;
+        }
+      }
+    } else if (def?.behavior === 'cannon_launch') {
+      const { dx, dy } = directionDelta((def as any).direction);
+      let cx = target.x + dx, cy = target.y + dy;
+      while (cx >= 0 && cx < state.gridCols && cy >= 0 && cy < state.gridRows) {
+        const scanT = state.tiles.get(tileKey(cx, cy));
+        const scanDef = scanT ? getTileDefinition(scanT.tileType) : undefined;
+        if (scanDef?.behavior === 'blocks_without_boat' && !explorer.hasBoat) break;
+        effectiveX = cx; effectiveY = cy;
+        cx += dx; cy += dy;
+      }
+    }
+  }
+
   const carryingTreasure = explorer.coinCount > 0 || explorer.otherItems.length > 0;
   if (carryingTreasure) {
     const distBefore = manhattan(explorer.x, explorer.y, player.baseX, player.baseY);
-    const distAfter = manhattan(target.x, target.y, player.baseX, player.baseY);
+    const distAfter = manhattan(effectiveX, effectiveY, player.baseX, player.baseY);
     score += (distBefore - distAfter) * 2;
   }
 
