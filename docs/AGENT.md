@@ -546,6 +546,57 @@ companion client fix or it'll render invisibly.
 
 ---
 
+### Arrow, Cannon, and Trap Tiles ✅ DONE (2026-07-12)
+
+Context: First wave of data-driven tile content after the registry refactor
+(Decisions 081/082). Added three signature tile types for playtesting — all
+gray-box (colored swatch + text label, no art files).
+
+Files:
+- backend/src/colyseus/model/TileRegistry.ts — extended TileEffect union with
+  `arrow_push`, `cannon_launch`, `immobilize`; added 9 new tile definitions
+  (arrow_north/south/east/west, cannon_north/south/east/west, trap); exported
+  `directionDelta`
+- backend/src/colyseus/model/GameState.ts — added `immobilizedUntilTurn: number`
+  to ExplorerState
+- backend/src/colyseus/model/GameRules.ts — `isValidMove` blocks immobilized
+  explorers; `applyMove` handles arrow push (1 step), cannon launch (scan to
+  last walkable tile), trap (set immobilizedUntilTurn = turnNumber + playerCount)
+- backend/src/colyseus/model/BotAI.ts — trap gets -4 heuristic penalty;
+  arrow/cannon compute effective landing position for base-distance scoring
+- godot/scenes/match/board/board_layer.gd — arrow/cannon/trap swatches (gray)
+  + text labels via `_draw()`; GUT tests added in `godot/tests/gc9/`
+
+Design decisions (Decision 086 for full rationale):
+- Four registry IDs per directional tile (arrow_north etc.) keeps TileSchema
+  unchanged; treasureType = tile id is the existing pattern
+- `immobilizedUntilTurn` threshold rather than decrement counter avoids
+  advanceTurn firing on the same handler call as applyMove (would drain the
+  counter to 0 before the trap affected any turn)
+
+Spawn weights: arrow 0.04 total (0.01 each direction), cannon 0.03 total
+(0.0075 each direction), trap 0.04. Combined with coin (0.12) + shield (0.03):
+~26% of interior tiles carry content on a 13×13 board.
+
+Tests: all Jest tests pass; GUT tests in godot/tests/gc9/ pass; TypeScript clean.
+Verification gate: 2-device in-person playtest still outstanding per project
+memory (automated coverage confirmed; real playtest is the final done-gate).
+
+Documentation: updated docs/DECISIONS.md (Decision 086); updated docs/TILES.md
+(new rows, updated TileEffect union, updated What's left); updated docs/AGENT.md
+(this entry + next sprint tasks below).
+
+---
+
+### Next Sprint: Arrow/Cannon/Trap Polish + Tile Seeding
+
+- [ ] Add directional indicator to arrow/cannon swatches (small arrow/chevron in `_draw()`)
+- [ ] Add combat check at arrow/cannon secondary landing position
+- [ ] Add board-seeding of tile definitions to Postgres (needed for map editor)
+- [ ] Add chain-cannon protection (explorer can't be launched into another cannon)
+
+---
+
 ### Godot↔Colyseus Spike ✅ (2026-06-16, branch: spike/godot-colyseus)
 
 **Verdict: Godot 4 CAN replace the Unity client.**

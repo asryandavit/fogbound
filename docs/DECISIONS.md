@@ -1436,3 +1436,26 @@ Consequences: `docs/INFRA.md` security note updated to reflect the fix
   from this fix, tracked here so it isn't lost.
 Supersedes / Related: 083, 084 (this is the fix those decisions named as
   a prerequisite/follow-up).
+
+## 086 — Gray-box arrow, cannon, trap tiles (2026-07-12)
+
+Added three signature tiles for playtesting: arrow (movement/push),
+cannon (movement/launch), trap (hazard/immobilize). Gray-box only:
+each renders as a colored swatch + text label, no art files.
+
+**Why four registry entries per directional tile (arrow_north/south/east/west)?**
+Direction is per-tile-instance data, not per-behavior. Encoding direction
+in the id keeps TileSchema unchanged and aligns with the existing pattern
+(treasureType = tile id). Four entries per type is fine given that the
+registry is data, not code.
+
+**Why immobilizedUntilTurn (turn-number threshold) instead of a decrement counter?**
+A decrement in advanceTurn fires immediately after applyMove on the same
+handler call, reducing the counter to 0 before the trap affects any turn.
+A threshold check (turnNumber <= immobilizedUntilTurn) has no mutation
+timing issue — it's a pure comparison against current state.
+
+**Spawn weights:** arrow 0.04 total, cannon 0.03 total, trap 0.04.
+Combined with coin (0.12) and shield (0.03), ~26% of interior tiles carry
+content on a 13×13 board (~37 tiles) — enough to create decisions without
+flooding the board.

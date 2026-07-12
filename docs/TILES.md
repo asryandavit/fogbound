@@ -45,7 +45,10 @@ type TileCategory = 'terrain' | 'treasure' | 'combat_item' | 'movement' | 'hazar
 type TileEffect =
   | { behavior: 'walkable' | 'blocks_without_boat' }
   | { behavior: 'grants_equip'; equipFlag: 'hasShield' | 'hasBag' | 'hasBoat' }
-  | { behavior: 'treasure_value'; valueRange: readonly [number, number] };
+  | { behavior: 'treasure_value'; valueRange: readonly [number, number] }
+  | { behavior: 'arrow_push'; direction: 'north' | 'south' | 'east' | 'west' }
+  | { behavior: 'cannon_launch'; direction: 'north' | 'south' | 'east' | 'west' }
+  | { behavior: 'immobilize' };
 
 type TileDefinition = TileEffect & { id: string; category: TileCategory; spawnWeight: number };
 ```
@@ -59,7 +62,7 @@ in code. They're allowed to diverge — GDD answers "what is this tile,"
 this registry answers "how does the engine treat it" — but the mismatch is
 called out explicitly here so it doesn't read as an unreconciled error.
 
-Six entries exist today:
+Fifteen entries exist today (6 original + 9 added in Decision 086):
 
 | id | category | behavior | spawnWeight | notes |
 |---|---|---|---|---|
@@ -69,10 +72,15 @@ Six entries exist today:
 | shield | combat_item | grants_equip, hasShield | 0.03 | migrated unchanged from `SHIELD_CHANCE` |
 | bag | special | grants_equip, hasBag | 0 | catalog-only (Decision 082) |
 | boat | movement | grants_equip, hasBoat | 0 | catalog-only (Decision 082) |
+| arrow_north, arrow_south, arrow_east, arrow_west | movement | arrow_push | 0.01 each (0.04 total) | pushes explorer 1 tile in direction; stays put if OOB or blocked |
+| cannon_north, cannon_south, cannon_east, cannon_west | movement | cannon_launch | 0.0075 each (0.03 total) | launches to last walkable tile in direction; stays put at edge |
+| trap | hazard | immobilize | 0.04 | sets immobilizedUntilTurn = turnNumber + playerCount; prevents movement for one player-turn |
 
 `getTileDefinition(id)` is the lookup `GameRules`/`BotAI` use instead of a
 literal-string comparison. `getSpawnableTreasureTiles()` returns the
-`spawnWeight > 0`, non-terrain entries in declaration order (coin, shield) —
+`spawnWeight > 0`, non-terrain entries in declaration order (coin, shield,
+arrow_north, arrow_south, arrow_east, arrow_west, cannon_north, cannon_south,
+cannon_east, cannon_west, trap) —
 `BoardSetup.placeTreasure` walks this list as a cumulative-probability
 table, so that order is load-bearing (see `TileRegistry.spec.ts`'s explicit
 ordering test).
@@ -84,13 +92,19 @@ stay at `spawnWeight: 0` — but the first task that gives either a nonzero
 weight needs a companion client fix, or this becomes an immediately visible
 rendering bug (silent fallback to plain terrain color).
 
+`arrow_north` etc., cannon, and trap now have gray-box swatches + text labels
+in `board_layer.gd` (added alongside their server-side tile definitions —
+Decision 086). The remaining gap is `"sword"`, `"bag"`, and `"boat"` only.
+
 ## What's left
 
 The registry mechanism is done; most of its *content* isn't:
 1. Seed to Postgres (still TypeScript-only right now) — needed for the map
    editor / live-ops tuning to edit tiles without a code deploy.
-2. Add the other 44 GDD tiles as data (sword, water/boat as genuinely
+2. Add the remaining GDD tiles as data (sword, water/boat as genuinely
    spawnable, jungle/quicksand/ice/desert terrain, and so on) — each is now
    a data entry, not a new `if` in three files, which was the point.
-3. Whenever water/boat becomes real content: fix the client art-swatch gap
-   above first (or it'll spawn invisibly).
+   **Done (Decision 086):** arrow_north/south/east/west, cannon_north/south/east/west, trap.
+3. Whenever water/boat/sword becomes real content: fix the client art-swatch gap
+   above first (or it'll spawn invisibly). Arrow/cannon/trap already have
+   gray-box swatches — no gap for them.
