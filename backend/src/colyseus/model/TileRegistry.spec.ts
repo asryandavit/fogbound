@@ -37,7 +37,7 @@ describe('new tile definitions', () => {
   it('arrow_north is defined with behavior arrow_push and direction north', () => {
     const def = getTileDefinition('arrow_north');
     expect(def?.behavior).toBe('arrow_push');
-    expect((def as any)?.direction).toBe('north');
+    expect((def as { direction?: string })?.direction).toBe('north');
     expect(def?.category).toBe('movement');
     expect(def?.spawnWeight).toBeGreaterThan(0);
   });
@@ -45,7 +45,7 @@ describe('new tile definitions', () => {
   it('cannon_east is defined with behavior cannon_launch and direction east', () => {
     const def = getTileDefinition('cannon_east');
     expect(def?.behavior).toBe('cannon_launch');
-    expect((def as any)?.direction).toBe('east');
+    expect((def as { direction?: string })?.direction).toBe('east');
     expect(def?.spawnWeight).toBeGreaterThan(0);
   });
 

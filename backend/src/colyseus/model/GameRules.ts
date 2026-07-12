@@ -180,8 +180,7 @@ export function applyMove(
       immobilizedUntilTurn: state.turn.turnNumber + state.players.size,
     };
   } else if (landedTileDef?.behavior === 'arrow_push' || landedTileDef?.behavior === 'cannon_launch') {
-    const dirDef = landedTileDef as { behavior: string; direction: 'north' | 'south' | 'east' | 'west' };
-    const { dx, dy } = directionDelta(dirDef.direction);
+    const { dx, dy } = directionDelta(landedTileDef.direction);
     let landX = target.x;
     let landY = target.y;
 
@@ -264,9 +263,12 @@ export function checkWinCondition(state: GameState): string | null {
   }
 
   if (state.winCondition === 'all_treasure') {
-    const anyTileHasTreasure = [...state.tiles.values()].some(
-      t => t.treasureValue > 0 || (t.treasureType !== 'none' && t.treasureType !== ''),
-    );
+    const anyTileHasTreasure = [...state.tiles.values()].some(t => {
+      if (t.treasureValue > 0) return true;
+      if (t.treasureType === 'none' || t.treasureType === '') return false;
+      const def = getTileDefinition(t.treasureType);
+      return def?.behavior === 'grants_equip';
+    });
     const anyExplorerHasTreasure = [...state.explorers.values()].some(
       e => e.coinCount > 0 || e.otherItems.length > 0,
     );
