@@ -5,14 +5,18 @@ class_name BoardLayer extends TileMapLayer
 
 # Atlas layout: terrain kinds first, then treasure overlays.
 const TERRAIN_TYPES := ["grass", "water"]
-const TREASURE_TYPES := ["coin", "shield", "sword"]
+const TREASURE_TYPES := ["coin", "shield", "sword", "arrow", "cannon", "trap"]
 const SWATCH_COLORS := [
     Color(0.30, 0.55, 0.25), # grass
     Color(0.20, 0.45, 0.75), # water
     Color(0.90, 0.80, 0.10), # coin
     Color(0.55, 0.55, 0.60), # shield
     Color(0.75, 0.20, 0.20), # sword
+    Color(0.65, 0.65, 0.65), # arrow  (light gray)
+    Color(0.42, 0.42, 0.42), # cannon (medium gray)
+    Color(0.25, 0.25, 0.25), # trap   (dark gray)
 ]
+const _LABEL_TILES := {"arrow": "ARROW", "cannon": "CANNON", "trap": "TRAP"}
 
 var _board_rows: int = 0
 
@@ -44,12 +48,34 @@ func _on_state_initialized() -> void:
     _board_rows = BoardCoord.compute_board_rows(GameState.tiles)
     for tile_data in GameState.tiles.values():
         _paint_tile(tile_data)
+    queue_redraw()
 
 func _on_tile_changed(coord_key: String) -> void:
     if _board_rows == 0:
         _board_rows = BoardCoord.compute_board_rows(GameState.tiles)
     if GameState.tiles.has(coord_key):
         _paint_tile(GameState.tiles[coord_key])
+    queue_redraw()
+
+func _draw() -> void:
+    if not GameState.is_initialized or _board_rows == 0:
+        return
+    var font := ThemeDB.fallback_font
+    for tile_data in GameState.tiles.values():
+        if not tile_data.get("isRevealed", false):
+            continue
+        var treasure: String = tile_data.get("treasureType", "none")
+        var base_type := treasure
+        if treasure.begins_with("arrow_"):
+            base_type = "arrow"
+        elif treasure.begins_with("cannon_"):
+            base_type = "cannon"
+        if not _LABEL_TILES.has(base_type):
+            continue
+        var label: String = _LABEL_TILES[base_type]
+        var coord := BoardCoord.to_tilemap_coord(tile_data, _board_rows)
+        var world_pos := map_to_local(coord)
+        draw_string(font, world_pos + Vector2(-12, 4), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color.WHITE)
 
 func _paint_tile(tile_data: Dictionary) -> void:
     if not tile_data.get("isRevealed", false):
@@ -60,7 +86,12 @@ func _paint_tile(tile_data: Dictionary) -> void:
 func _pick_atlas_index(tile_data: Dictionary) -> int:
     var treasure: String = tile_data.get("treasureType", "none")
     if treasure != "none" and treasure != "":
-        var t_idx := TREASURE_TYPES.find(treasure)
+        var base_type := treasure
+        if treasure.begins_with("arrow_"):
+            base_type = "arrow"
+        elif treasure.begins_with("cannon_"):
+            base_type = "cannon"
+        var t_idx := TREASURE_TYPES.find(base_type)
         if t_idx != -1:
             return TERRAIN_TYPES.size() + t_idx
     var terrain: String = tile_data.get("tileType", "grass")
