@@ -164,26 +164,33 @@ describe('chooseBotAction', () => {
   });
 
   it('avoids stepping on a trap tile when a neutral move is available', () => {
+    // Geometry: explorer at (0,0) carrying 1 coin, base at (4,4), trap at (1,0).
+    // Without the -4 immobilize penalty both east(trap) and south score +2
+    // (each reduces manhattan distance by 1); east is first in enumeration so
+    // the heuristic picks east = trap → test would be RED without the penalty.
+    // With the -4 penalty: east scores -2, south scores +2 → bot picks south.
+    // MCTS rollout confirms: south banks the coin at ply ~13 (discount ≈ 0.254),
+    // trap banks at ply ~15 (one extra wasted turn due to immobilize, discount ≈ 0.206).
     const tiles = new Map<string, TileState>();
     for (let x = 0; x < 5; x++)
       for (let y = 0; y < 5; y++) tiles.set(tileKey(x, y), makeTile(x, y));
-    tiles.set(tileKey(2, 3), makeTile(2, 3, { treasureType: 'trap' }));
+    tiles.set(tileKey(1, 0), makeTile(1, 0, { treasureType: 'trap' }));
 
     const state: GameState = {
       matchId: 'test', status: 'in_progress', gridCols: 5, gridRows: 5,
       tiles,
-      explorers: new Map([['e1', makeExplorer('e1', 'bot', 2, 2)]]),
+      explorers: new Map([['e1', makeExplorer('e1', 'bot', 0, 0, { coinCount: 1 })]]),
       players: new Map([
-        ['bot', makePlayer('bot', 1, 2, 4)],
-        ['human', makePlayer('human', 0, 2, 0)],
+        ['bot', makePlayer('bot', 1, 4, 4)],
+        ['human', makePlayer('human', 0, 0, 4)],
       ]),
       turn: { currentPlayerId: 'bot', turnNumber: 1, phase: 'move' },
       winCondition: 'all_treasure',
     };
 
     const action = chooseBotAction(state, 'bot', noRandomRng());
-    // trap is directly south; bot should prefer any other direction
-    expect(action).not.toEqual({ type: 'move', explorerId: 'e1', target: { x: 2, y: 3 } });
+    // trap is directly east at (1,0); bot should head south toward base (4,4)
+    expect(action).not.toEqual({ type: 'move', explorerId: 'e1', target: { x: 1, y: 0 } });
   });
 
   it('always returns a legal action across a variety of states without throwing', () => {

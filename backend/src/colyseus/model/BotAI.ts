@@ -216,7 +216,7 @@ function scoreMoveHeuristic(
     if (def?.behavior === 'immobilize') {
       score -= 4;
     } else if (def?.behavior === 'arrow_push') {
-      const { dx, dy } = directionDelta((def as any).direction);
+      const { dx, dy } = directionDelta(def.direction);
       const nx = target.x + dx, ny = target.y + dy;
       if (nx >= 0 && nx < state.gridCols && ny >= 0 && ny < state.gridRows) {
         const nextT = state.tiles.get(tileKey(nx, ny));
@@ -226,7 +226,7 @@ function scoreMoveHeuristic(
         }
       }
     } else if (def?.behavior === 'cannon_launch') {
-      const { dx, dy } = directionDelta((def as any).direction);
+      const { dx, dy } = directionDelta(def.direction);
       let cx = target.x + dx, cy = target.y + dy;
       while (cx >= 0 && cx < state.gridCols && cy >= 0 && cy < state.gridRows) {
         const scanT = state.tiles.get(tileKey(cx, cy));
