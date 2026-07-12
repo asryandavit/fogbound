@@ -180,7 +180,8 @@ export function applyMove(
       immobilizedUntilTurn: state.turn.turnNumber + state.players.size,
     };
   } else if (landedTileDef?.behavior === 'arrow_push' || landedTileDef?.behavior === 'cannon_launch') {
-    const { dx, dy } = directionDelta((landedTileDef as { direction: 'north' | 'south' | 'east' | 'west' }).direction);
+    const dirDef = landedTileDef as { behavior: string; direction: 'north' | 'south' | 'east' | 'west' };
+    const { dx, dy } = directionDelta(dirDef.direction);
     let landX = target.x;
     let landY = target.y;
 

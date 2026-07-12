@@ -320,6 +320,13 @@ describe('isValidMove: immobilized explorer', () => {
     const state = makeState({ explorers, turn: { currentPlayerId: 'p1', turnNumber: 3, phase: 'move' } });
     expect(isValidMove(state, 'e1', { x: 1, y: 1 })).toBe(true);
   });
+
+  it('blocks explorer when turnNumber equals immobilizedUntilTurn (boundary)', () => {
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 1, 0, { immobilizedUntilTurn: 3 }));
+    const state = makeState({ explorers, turn: { currentPlayerId: 'p1', turnNumber: 3, phase: 'move' } });
+    expect(isValidMove(state, 'e1', { x: 1, y: 1 })).toBe(false);
+  });
 });
 
 // ─── applyMove: trap ──────────────────────────────────────────────────────
@@ -383,6 +390,19 @@ describe('applyMove: arrow', () => {
     expect(state.tiles.get(tileKey(1, 2))!.isRevealed).toBe(false);
     const next = applyMove(state, 'e1', { x: 1, y: 1 });
     expect(next.tiles.get(tileKey(1, 2))!.isRevealed).toBe(true);
+  });
+
+  it('arrow push blocked by water tile: explorer stays on arrow tile', () => {
+    const explorers = new Map(makeState().explorers);
+    explorers.set('e1', makeExplorer('e1', 'p1', 2, 1));
+    const tiles = new Map(makeState().tiles);
+    tiles.set(tileKey(2, 1), makeTile(2, 1, { treasureType: 'arrow_south' }));
+    tiles.set(tileKey(2, 2), makeTile(2, 2, { tileType: 'water' })); // blocks push
+    const state = makeState({ tiles, explorers });
+    const next = applyMove(state, 'e1', { x: 2, y: 1 });
+    // push target (2,2) is water → explorer stays at arrow tile (2,1)
+    expect(next.explorers.get('e1')!.x).toBe(2);
+    expect(next.explorers.get('e1')!.y).toBe(1);
   });
 });
 
