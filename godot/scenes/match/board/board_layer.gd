@@ -25,6 +25,14 @@ func _ready() -> void:
     GameState.state_initialized.connect(_on_state_initialized)
     GameState.tile_changed.connect(_on_tile_changed)
 
+# Returns correct board_rows only when the tile set is complete (square board),
+# guarding against partial Colyseus deltas that give wrong coordinate flips.
+func _validated_board_rows() -> int:
+    var rows := BoardCoord.compute_board_rows(GameState.tiles)
+    if rows < 7: return 0
+    if GameState.tiles.size() != rows * rows: return 0
+    return rows
+
 func _build_tileset() -> void:
     var px := BoardCoord.TILE_PX
     var count := SWATCH_COLORS.size()
@@ -45,14 +53,24 @@ func _build_tileset() -> void:
     tile_set = ts
 
 func _on_state_initialized() -> void:
-    _board_rows = BoardCoord.compute_board_rows(GameState.tiles)
+    var rows := _validated_board_rows()
+    if rows == 0:
+        return  # partial Colyseus delta; tile_changed will retry
+    _board_rows = rows
     for tile_data in GameState.tiles.values():
         _paint_tile(tile_data)
     queue_redraw()
 
 func _on_tile_changed(coord_key: String) -> void:
-    if _board_rows == 0:
-        _board_rows = BoardCoord.compute_board_rows(GameState.tiles)
+    if _board_rows < 7:
+        var rows := _validated_board_rows()
+        if rows == 0:
+            return  # still partial; skip until square board arrives
+        _board_rows = rows
+        for tile_data in GameState.tiles.values():
+            _paint_tile(tile_data)
+        queue_redraw()
+        return
     if GameState.tiles.has(coord_key):
         _paint_tile(GameState.tiles[coord_key])
     queue_redraw()

@@ -588,6 +588,61 @@ Documentation: updated docs/DECISIONS.md (Decision 086); updated docs/TILES.md
 
 ---
 
+### Android APK Build + Board Rendering Fix + 2-Device Playtest ✅ DONE (2026-07-20)
+
+Context: After GC1-GC7 and the arrow/cannon/trap tile work, the game had never
+been verified on real Android hardware or emulators with two concurrent clients.
+Both emulators showed blank black screens. This sprint fixed the root cause,
+established a working APK build pipeline, and completed the 2-device playtest.
+
+**Board rendering root cause (Decisions 087/088):**
+The Colyseus server sends an initial partial state delta — the second device to
+join a room receives fewer tiles than the full board (e.g. 67 of 169). 
+`BoardCoord.compute_board_rows(67 tiles)` returns ~8, not 13. All tiles were
+placed at wrong TileMapLayer coordinates, producing a blank board that never
+corrected. Fixed with `_validated_board_rows()` in both `BoardLayer` and
+`FogLayer`: returns the row-count only when `tiles.size() == rows * rows`
+(complete square). Both layers defer all painting until the full board arrives,
+then repaint all tiles at once.
+
+Camera pan clamping: at max_zoom the 13×13 board is smaller than the emulator
+viewport. Added `_clamp_to_board()` — when `half_view >= board_size * 0.5`,
+the board fits in the viewport, so force-centre rather than clamp.
+
+**APK build pipeline:**
+- `use_gradle_build=false` (template export) avoids recursive Gradle asset nesting
+  that produced 319 gdextension copies across multiple builds
+- Godot headless export always produces 0-byte Colyseus `.so` — must inject the
+  real 31MB library from a known-good APK built with the correct keystore
+- Android R+ requires all `.so` files stored uncompressed (`zip -0`) and
+  4-byte aligned (`zipalign -f 4`)
+- Signed with `~/Library/Application Support/Godot/keystores/debug.keystore`,
+  alias=androiddebugkey, password=android
+
+**Backend Docker discovery:**
+The NestJS + Colyseus backend runs in the `fogbound_backend` Docker container
+(via OrbStack / `docker/docker-compose.yml`), not as a bare Node process.
+Use `docker restart fogbound_backend` to clear all Colyseus in-memory rooms
+between test sessions, not `pkill` on Node.
+
+**2-device playtest results (verified 2026-07-20):**
+- emulator-5554 (player_9915): joined fresh room, "Your Turn", explorers on
+  top row, board rendered correctly (13×13, black fog, green starting rows)
+- emulator-5556 (player_6018): joined same room, "Waiting…", explorers on
+  bottom row, partial state handled correctly by `_validated_board_rows()`
+- "End Turn" on 5554: 5554 → "Waiting…", 5556 → "Your Turn" — turn passing confirmed
+- 2 players, 4 explorers, correct HUD on both devices
+
+Files changed: `godot/scenes/match/board/board_layer.gd`,
+`godot/scenes/match/board/fog_layer.gd`,
+`godot/scenes/match/CameraController.gd`,
+`godot/export_presets.cfg`
+
+Documentation: updated docs/DECISIONS.md (added entries 087 — validated_board_rows
+guard, 088 — camera pan clamping); updated docs/AGENT.md (this entry).
+
+---
+
 ### Next Sprint: Arrow/Cannon/Trap Polish + Tile Seeding
 
 - [ ] Add directional indicator to arrow/cannon swatches (small arrow/chevron in `_draw()`)

@@ -17,10 +17,13 @@ var _pan_tween: Tween
 var _zoom_tween: Tween
 var _last_tap_time: float = -1.0
 var _zoom_cycle_index: int = 0
+# Guards the one-time fit-to-screen setup. state_initialized fires before tiles
+# arrive (first sync has 0 tiles), so we defer until we have real tile data.
+var _initial_camera_set := false
 
 func _ready() -> void:
     GameState.turn_changed.connect(_on_turn_changed)
-    _recompute_zoom_bounds()
+    GameState.state_initialized.connect(_on_state_initialized)
 
 func _recompute_zoom_bounds() -> void:
     var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
@@ -30,12 +33,32 @@ func _recompute_zoom_bounds() -> void:
     if viewport_size.x <= 0 or viewport_size.y <= 0:
         return
     var tile_px := float(BoardCoord.TILE_PX)
-    var full_board_px := Vector2(board_rows, board_rows) * tile_px * BOARD_PADDING
-    max_zoom = max(full_board_px.x / viewport_size.x, full_board_px.y / viewport_size.y)
-    var close_px := Vector2(MIN_VISIBLE_TILES, MIN_VISIBLE_TILES) * tile_px
-    min_zoom = max(close_px.x / viewport_size.x, close_px.y / viewport_size.y)
+    var full_board_px := board_rows * tile_px * BOARD_PADDING
+    var close_px := MIN_VISIBLE_TILES * tile_px
+    # max_zoom: most zoomed OUT (whole board fits); min_zoom: most zoomed IN (~5 tiles wide).
+    # Camera2D.zoom > 1 = magnified; use min() of x/y so the limiting dimension fits.
+    max_zoom = min(viewport_size.x / full_board_px, viewport_size.y / full_board_px)
+    min_zoom = min(viewport_size.x / close_px, viewport_size.y / close_px)
+
+## Called when state_initialized fires (may be before tiles arrive) AND on every
+## turn_changed. Sets zoom/position exactly once, when tiles are actually present.
+func _try_set_initial_camera() -> void:
+    if _initial_camera_set:
+        return
+    _recompute_zoom_bounds()
+    var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
+    if board_rows < 7:
+        return  # partial state (min valid board is 7×7); retry on next turn_changed
+    _initial_camera_set = true
+    zoom = Vector2(max_zoom, max_zoom)
+    var half := (board_rows - 1) * float(BoardCoord.TILE_PX) * 0.5
+    position = Vector2(half, half)
+
+func _on_state_initialized() -> void:
+    _try_set_initial_camera()
 
 func _on_turn_changed() -> void:
+    _try_set_initial_camera()
     if GameState.current_player_id != NetworkManager.local_player_id:
         return
     _pan_target = _compute_own_units_centroid()
@@ -53,7 +76,28 @@ func _compute_own_units_centroid() -> Vector2:
             count += 1
     return total / count if count > 0 else Vector2.ZERO
 
+func _clamp_to_board(target: Vector2) -> Vector2:
+    var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
+    if board_rows == 0:
+        return target
+    var board_size := (board_rows - 1) * float(BoardCoord.TILE_PX)
+    var viewport_size := get_viewport().get_visible_rect().size
+    var half_view := viewport_size * 0.5 / zoom.x
+    # When the board is smaller than the viewport, center it instead of clamping.
+    var cx: float
+    var cy: float
+    if half_view.x >= board_size * 0.5:
+        cx = board_size * 0.5
+    else:
+        cx = clamp(target.x, half_view.x, board_size - half_view.x)
+    if half_view.y >= board_size * 0.5:
+        cy = board_size * 0.5
+    else:
+        cy = clamp(target.y, half_view.y, board_size - half_view.y)
+    return Vector2(cx, cy)
+
 func _tween_pan() -> void:
+    _pan_target = _clamp_to_board(_pan_target)
     if _pan_tween:
         _pan_tween.kill()
     _pan_tween = create_tween()
@@ -61,26 +105,15 @@ func _tween_pan() -> void:
         .set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 ## Decision 025 zoom formula (ortho_size -= delta*0.5*ortho_size), adapted to
-## Godot's zoom property — smaller zoom.x is more magnified, same direction
-## as Unity's orthoSize, so the formula carries over unchanged.
+## Godot's zoom property. max_zoom < min_zoom numerically (max_zoom = widest view).
 func apply_pinch_delta(delta: float) -> void:
-    # Recompute fresh rather than trusting whatever _ready() cached — the
-    # same GameState.tiles ordering hazard as Decision 061 applies here:
-    # _ready() can run before tiles are fully populated, producing an
-    # inverted/wrong min_zoom > max_zoom (confirmed live against
-    # fogbound_backend). _recompute_zoom_bounds() is a safe no-op while
-    # tiles is still empty (board_rows == 0 guard), so tests that set
-    # min_zoom/max_zoom directly on an empty GameState are unaffected.
     _recompute_zoom_bounds()
     var new_zoom: float = zoom.x - delta * 0.5 * zoom.x
-    new_zoom = clamp(new_zoom, min_zoom, max_zoom)
+    new_zoom = clamp(new_zoom, max_zoom, min_zoom)
     zoom = Vector2(new_zoom, new_zoom)
 
 func _input(event: InputEvent) -> void:
     if event is InputEventMagnifyGesture:
-        # factor is a relative scale (1.0 = no change); approximated as a
-        # delta for the Decision 025 formula. Not empirically verified against
-        # real multitouch hardware — no automated test covers this path.
         apply_pinch_delta(event.factor - 1.0)
     elif event is InputEventScreenTouch and event.pressed:
         _handle_tap_for_double_tap()

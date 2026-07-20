@@ -1459,3 +1459,58 @@ timing issue — it's a pure comparison against current state.
 Combined with coin (0.12) and shield (0.03), ~26% of interior tiles carry
 content on a 13×13 board (~37 tiles) — enough to create decisions without
 flooding the board.
+
+## 087 — Board rendering: validated_board_rows guard against partial Colyseus state (2026-07-20)
+
+Context: The second device to join a Colyseus room receives an initial
+partial state delta — e.g. 67 out of 169 tiles on a 13×13 board.
+`BoardCoord.compute_board_rows()` returns `sqrt(tile_count)`, so 67 tiles
+returns 8 (not 13). Every tile was then placed at the wrong TileMapLayer
+coordinate, producing a blank or corrupted board that never corrected.
+The same defect applied to `FogLayer` (fog cells placed at negative
+world coordinates, leaving the board gray instead of rendering black fog).
+
+Decision: `BoardLayer` and `FogLayer` each expose a private
+`_validated_board_rows() -> int` that returns the computed row-count only
+when `tiles.size() == rows * rows` (a complete square). Until that
+invariant holds, `_on_state_initialized()` returns early and
+`_on_tile_changed()` skips painting. On the first `tile_changed` call
+where the full square has arrived, both layers repaint all tiles at once
+and then handle subsequent deltas individually.
+
+**Why check `tiles.size() == rows * rows` rather than comparing to a known size?**
+The client never knows the map size in advance (it's server-authoritative).
+The square-completeness check is the only invariant derivable from the
+data itself, and it holds for all supported board sizes (7, 9, 11, 13,
+15, 17 per GDD).
+
+Consequences: `CameraController._try_set_initial_camera()` has the same
+`board_rows < 7` guard for the same reason — camera initialisation
+deferred until a valid board is present.
+
+## 088 — Camera pan clamping: board-fits-in-viewport centres instead of clamps (2026-07-20)
+
+Context: On the emulator (landscape 2856×1280), a 13×13 board at zoom
+max_zoom (≈2.8) is smaller than the viewport. Without clamping, panning
+to the own-units centroid (e.g. world y=384 for the bottom player) placed
+the camera outside the board, showing mostly gray background.
+
+Decision: `CameraController._clamp_to_board()` computes
+`half_view = viewport_size * 0.5 / zoom.x`. When `half_view >= board_size * 0.5`
+(the board fits entirely in one dimension), the camera is force-centred on
+that dimension instead of clamped. When the board is larger than the
+viewport, standard `clamp(target, half_view, board_size - half_view)` applies.
+GDScript ternary inference was avoided by using explicit typed `float`
+variables with `if/else` blocks (Godot 4.6.3 treats `var x := A if C else B`
+as Variant when both branches are float, which is a parse error under
+warnings-as-errors).
+
+**Why not clamp to fixed margins?**
+Fixed margins assume a known board/viewport ratio. The board size is
+server-authoritative and the viewport varies by device. The half-view
+test is dimension-agnostic and works for any legal board size and zoom level.
+
+Consequences: `_tween_pan()` always calls `_clamp_to_board()` before
+starting the pan tween. Double-tap zoom cycle (Decision 025) already
+calls `_recompute_zoom_bounds()`, so zoom transitions never require
+separate clamp logic.
