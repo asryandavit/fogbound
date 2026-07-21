@@ -643,6 +643,31 @@ guard, 088 — camera pan clamping); updated docs/AGENT.md (this entry).
 
 ---
 
+### Portrait Lock + HUD Safe-Area + Exit Button ✅ DONE (2026-07-21)
+
+Context: project.godot had no `[display]` section, so Android defaulted to
+landscape — the End Turn button rendered off-screen on both emulators. The HUD
+also had no safe-area margins and no way to leave a match mid-game.
+
+Files changed:
+- `godot/project.godot` — added `[display]` section: `window/handheld/orientation=1`
+  (portrait), viewport 720×1280, `canvas_items` stretch, `keep` aspect
+- `godot/scenes/match/hud/Hud.tscn` — adjusted offsets for 80px top / 100px bottom
+  / 40px side safe-areas; added ExitButton (top-right, 100×48px)
+- `godot/scenes/match/hud/hud.gd` — added `exit_button` @onready +
+  `_on_exit_pressed()` → `GameFlow.to_main_menu()`
+- `godot/tests/gc6/test_hud.gd` — 3 new tests (exit_button exists, visible,
+  wired to leave-match handler); all 9 tests pass
+- `docs/DECISIONS.md` — added entry 089
+
+Documentation: updated docs/DECISIONS.md (added entry 089 — portrait lock,
+HUD safe-area, exit button); updated docs/AGENT.md (this entry).
+
+APK rebuild + emulator visual verification: pending (user will rebuild and verify
+on both emulators after this commit, per task scope).
+
+---
+
 ### Next Sprint: Arrow/Cannon/Trap Polish + Tile Seeding
 
 - [ ] Add directional indicator to arrow/cannon swatches (small arrow/chevron in `_draw()`)

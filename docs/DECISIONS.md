@@ -1514,3 +1514,35 @@ Consequences: `_tween_pan()` always calls `_clamp_to_board()` before
 starting the pan tween. Double-tap zoom cycle (Decision 025) already
 calls `_recompute_zoom_bounds()`, so zoom transitions never require
 separate clamp logic.
+
+## 089 — Portrait lock, HUD safe-area margins, exit button (2026-07-21)
+
+Decision: Three related housekeeping fixes shipped together.
+
+1. **Portrait lock:** Added `[display]` section to `godot/project.godot`:
+   - `window/handheld/orientation=1` (DisplayServer.SCREEN_PORTRAIT)
+   - Design viewport 720×1280 (9:16 portrait, standard mobile)
+   - `window/stretch/mode="canvas_items"`, `window/stretch/aspect="keep"`
+   Without this section, Android defaulted to landscape (orientation 0),
+   causing the End Turn button to render off-screen on emulators.
+
+2. **HUD safe-area margins:** Adjusted CanvasLayer control offsets in Hud.tscn
+   so no element sits within the OS-reserved zones:
+   - Top: 80px (covers status bar + notch)
+   - Bottom: 100px (covers home indicator / nav bar)
+   - Sides: 40px (covers rounded display corners)
+   Coordinates are in the 720×1280 design space; canvas_items stretch scales
+   them proportionally to any device resolution.
+
+3. **Exit button:** Added ExitButton to Hud.tscn (top-right corner, 100×48px
+   at design resolution, anchored top-right). `_on_exit_pressed` in hud.gd
+   calls `GameFlow.to_main_menu()`, which already calls
+   `NetworkManager.disconnect_from_match()` before changing scenes. This
+   ensures the Colyseus room is cleanly left before the main menu loads.
+   No new autoload or scene-change logic was added — the existing
+   GameFlow path is reused.
+
+Reason: Emulator playtest revealed the orientation bug. Safe-area and exit
+button are the minimum HUD scaffolding needed before an in-person 2-device
+playtest (memory: in-person 2-device playtest is the done-gate).
+Security: neutral. No server interaction added.

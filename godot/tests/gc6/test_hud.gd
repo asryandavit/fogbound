@@ -35,3 +35,12 @@ func test_undo_hidden_initially() -> void:
 func test_undo_appears_after_send_move() -> void:
     NetworkManager.move_sent.emit()
     assert_true(hud.undo_button.visible)
+
+func test_exit_button_exists() -> void:
+    assert_not_null(hud.exit_button)
+
+func test_exit_button_visible() -> void:
+    assert_true(hud.exit_button.visible)
+
+func test_exit_button_wired_to_leave_match() -> void:
+    assert_true(hud.exit_button.is_connected("pressed", hud._on_exit_pressed))
