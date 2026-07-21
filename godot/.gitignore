@@ -1,6 +1,9 @@
 # Godot 4 cache and import data — never commit
 .godot/
 
+# Android export — generated Gradle project + version marker (never hand-authored)
+android/
+
 # Export presets and exported builds
 export_presets.cfg
 *.apk
