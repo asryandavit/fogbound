@@ -2,10 +2,13 @@
 .godot/
 
 # Android export — generated Gradle project + version marker (never hand-authored)
-android/
+# Ignore everything inside android/ except the handwritten build tool
+android/*
+!android/fix_apk.py
 
-# Export presets and exported builds
-export_presets.cfg
+# Export presets: DO commit export_presets.cfg — contains permissions,
+# architectures, and custom features (e.g. fogbound_emulator) that affect
+# every build. Exported binaries are in builds/ (gitignored at repo root).
 *.apk
 *.aab
 *.ipa

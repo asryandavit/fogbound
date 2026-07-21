@@ -1546,3 +1546,51 @@ Reason: Emulator playtest revealed the orientation bug. Safe-area and exit
 button are the minimum HUD scaffolding needed before an in-person 2-device
 playtest (memory: in-person 2-device playtest is the done-gate).
 Security: neutral. No server interaction added.
+
+## 090 — Android INTERNET permission missing from export preset (2026-07-21)
+
+Problem: The Colyseus C++ GDExtension SDK (libcolyseus_godot.android.arm64.debug.so)
+uses raw POSIX BSD sockets to make the HTTP POST to `/matchmake/create/fogbound_room`.
+On Android, the kernel enforces `android.permission.INTERNET` via iptables: apps
+without the permission have their outgoing TCP packets silently dropped. This produced
+`UnexpectedConnectFailure` (code=0) ~15ms after `_client.create()` — the POSIX
+`connect()` appeared to return but the packet never reached the host Docker server.
+The `nc -z 10.0.2.2 4567` test from the emulator shell ALWAYS succeeded because
+`nc` runs as the `shell` uid which is exempt from app-level iptables rules.
+
+Root cause: `godot/export_presets.cfg` had
+`permissions/custom_permissions=PackedStringArray()` — an empty list. Godot's
+Android export only adds `android.permission.INTERNET` to the manifest if
+explicitly requested in the preset. Without it, every build since the project
+started lacked the permission (both presets, raw and fixed APK).
+
+The "POSTs reached Docker in a previous session" observed earlier were from
+host-side curl tests, not the app. The C++ SDK never successfully connected.
+
+Fix: Added `android.permission.INTERNET` to both export presets:
+```
+permissions/custom_permissions=PackedStringArray("android.permission.INTERNET")
+```
+
+Re-exported with `godot --headless --export-debug "Android Emulator"` (signing
+failed due to duplicate .so entries, but Godot wrote the unsigned APK with the
+correct manifest), then ran fix_apk.py (deduplicates .so files, strips Gradle
+intermediate entries, forces ZIP_STORED compression), signed with debug.keystore.
+
+Verification: `[NetworkManager] joined room=-3Xpk0EBB session=UWlqTrWa_` in
+logcat; Docker logged `[HTTP] POST /matchmake/create/fogbound_room` and
+`[WS_UPGRADE] /...`; board renders on emulator with 169 tiles, 4 explorers,
+green starting rows, black fog.
+
+Additional: The `assets.sparsepck` inside the APK still references 4 ghost
+`.gdextension` paths (Gradle intermediate artifacts that fix_apk.py removes
+from the ZIP but cannot remove from the embedded sparse PCK). These produce
+4 non-fatal "Can't open pack-referenced file" errors at startup; the real
+`addons/colyseus/colyseus.gdextension` loads on the 5th attempt and the SDK
+initialises correctly. fix_apk.py addresses the duplicate .so issue that
+caused "already registered" errors but cannot fix the sparse PCK references
+without understanding and rewriting Godot's binary PCK format.
+
+Security: INTERNET permission is a normal Android permission (not dangerous);
+it is automatically granted when declared in the manifest, requires no
+runtime user prompt.

@@ -663,8 +663,21 @@ Files changed:
 Documentation: updated docs/DECISIONS.md (added entry 089 — portrait lock,
 HUD safe-area, exit button); updated docs/AGENT.md (this entry).
 
-APK rebuild + emulator visual verification: pending (user will rebuild and verify
-on both emulators after this commit, per task scope).
+APK rebuild + emulator visual verification: ✅ DONE (2026-07-21, follow-up session)
+
+**Board was still gray after portrait commit** — separate blocker found and fixed:
+`android.permission.INTERNET` was missing from both export presets (empty
+`custom_permissions=PackedStringArray()`). Android's iptables drops all TCP packets
+from apps without the permission; `nc` from the emulator shell is exempt (shell uid).
+C++ SDK returned `UnexpectedConnectFailure` code=0 in ~15ms with zero Docker traffic.
+
+Fix: added `android.permission.INTERNET` to both export presets in
+`godot/export_presets.cfg`; re-exported headlessly; applied fix_apk.py (deduplicates
+Colyseus .so files, strips Gradle intermediate entries, forces ZIP_STORED); signed
+with debug.keystore; installed on emulator-5554. Board now renders: green starting
+rows, black fog, 4 explorers. Connection confirmed in logcat and Docker logs.
+
+See Decision 090. Committed as `fix(godot): add android.permission.INTERNET to export presets`.
 
 ---
 
