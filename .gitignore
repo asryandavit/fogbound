@@ -27,10 +27,12 @@ game/ProjectSettings/Packages/
 game/com.IvanMurzak.Unity.MCP.Installer.csproj
 game/com.IvanMurzak.Unity.MCP.Installer.Tests.csproj
 
-# Claude Code local config
+# Claude Code local config (machine-specific — not shared)
 claude/
-.claude/
-*.claude
+.claude/*
+?*.claude
+# Project-level slash commands ARE shared
+!.claude/commands/
 
 # Environment files
 docker/.env
