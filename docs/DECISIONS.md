@@ -1698,3 +1698,100 @@ already-public match/turn/player state, no secrets or private user data.
 
 Jest: 90/90 pass (all existing suites, no new test needed as the log is a
 side effect, not a return value).
+
+## 094 — Fixed WS double-connection regression from Decision 092; root cause was the GDExtension SDK's internal second socket, not the WS transport itself
+
+Decision: Revert Decision 092's `player_ready` handshake entirely. Remove
+`readyPlayers`, the `player_ready` message handler, and the ready-gate from
+`startTurnTimer()` in `GameRoom.ts`; remove `_send_player_ready()` and
+`_ready_sent` from `network_manager.gd`. `startTurnTimer()` now arms
+unconditionally when a turn starts, relying on the existing 60-second
+`turnTimerSeconds` safety net (GDD: timer expiry auto-selects the safest
+legal move). No replacement readiness signal is added.
+
+**Regression:** Decision 092 introduced `player_ready`, sent once by the
+client after `finalize_initialization()`, to stop the turn timer arming
+before the client had finished rendering. This broke every match: the
+client disconnected within ~1 second of the first `send_message` call and
+was never able to make a move.
+
+**Root cause (bisected per the `/goal` framing — this was NOT a
+pre-existing SDK bug, it was introduced by 092):** The Colyseus native
+GDExtension C++ SDK (0.17.11, Decision 036) opens a second, internal
+WebSocket connection as a side effect of `Room.send_message()` — this
+happens on the SDK's first `send_message` call in a session, independent
+of message content. The second connection carries only `?sessionId=...`
+(no `reconnectionToken`), so the server's `hasReservedSeat()` correctly
+returns false (the seat was already consumed by the first, real
+connection) and closes it with `CloseCode.WITH_ERROR (4002)`. This
+part is harmless BY ITSELF — a bisect test with `player_ready` fully
+disabled still showed the same second `[WS_UPGRADE]` firing, with no
+disconnect, confirming the second socket appearing is normal SDK
+behavior that the SDK discards silently under normal conditions.
+
+The regression was in the TIMING: `player_ready`'s `send_message` call
+put the SDK into an "awaiting confirmation" state at the exact moment the
+second socket's 4002 rejection arrived, and in that state the SDK
+propagated the rejection as a `left` event on the Room object — visible
+to the game as a full disconnect. A 10-second delayed diagnostic (firing
+`send_message` well after init instead of immediately) reproduced the
+disconnect at exactly the 10-second mark, proving it is triggered by
+`send_message` itself, not by any race during initial state processing.
+
+**Fix:** Since the client loads and syncs in under 0.5 seconds and the
+turn timer default is 60 seconds, there is no real need for a
+client-driven readiness gate — removing `player_ready` removes the only
+early `send_message` call, so the SDK's internal second socket resolves
+silently again (as it always did before 092), and the first `send_message`
+a real match sees is the player's own first move, by which point the
+timing window that caused 092's regression no longer applies.
+
+**Critical process finding — stale Docker image invalidated hours of
+"verification":** `docker/docker-compose.yml`'s `fogbound_backend`
+service builds from `backend/Dockerfile` (`NODE_ENV=production`, no
+source bind-mount). The running container had been `docker restart`ed
+several times during this debugging session but the underlying IMAGE was
+last built 12 days ago — `docker restart` reuses the existing image, it
+does not rebuild from source. Every GameRoom.ts edit made this session
+(including the actual 092-revert) was therefore invisible to the live
+server until `docker compose build fogbound_backend && docker compose up
+-d fogbound_backend` was run explicitly. This was only caught because the
+expected structured action-log lines (Decision 093) never appeared despite
+apparent gameplay activity, and `docker exec fogbound_backend grep
+player_ready dist/.../GameRoom.js` still matched after the "fix" had
+supposedly landed. Rule going forward: after any backend source change,
+verification against the live Colyseus server MUST include a rebuild step,
+not just a restart — `docker restart` is for picking up env/config
+changes only, never code changes, for this project's `NODE_ENV=production`
+Dockerfile-based service.
+
+**Live verification (two real emulators, two real human players, not
+solo-vs-bot):** Two Android emulators (`emulator-5554`, `emulator-5556`)
+each ran the fixed client and joined the same room via "Play vs Player"
+(`join_or_create`, no bot). Server log for that match
+(`match_1784738538879`):
+```
+GameRoom created: match_1784738538879
+[WSURL] .../bGrOwseHk?sessionId=WMoLtDlnb
+Player joined: Player (player_11218)
+[WSURL] .../bGrOwseHk?sessionId=gJjUTSZwF
+Player joined: Player (player_10625)
+Match started: match_1784738538879
+{"event":"action",...,"playerId":"player_11218","action":"move_explorer","payload":{"targetX":4,"targetY":1},"verdict":"accepted"}
+{"event":"action",...,"playerId":"player_10625","action":"move_explorer","payload":{"targetX":4,"targetY":11},"verdict":"accepted"}
+```
+Both clients stayed connected with no `left`/disconnect event through
+both real moves and 8+ seconds of subsequent idle observation. One
+`[WSURL]` per client, exactly as expected. A rejected out-of-turn move was
+also captured (`verdict:"rejected:NOT_YOUR_TURN"`) using a throwaway
+diagnostic build with the client-side turn-guard in
+`InputController.gd` temporarily bypassed (the guard is a UX nicety only —
+the server always re-validates per Decision 039/CLAUDE.md's "client never
+trusts itself"); the diagnostic bypass and its accompanying debug prints
+were reverted before this fix was considered done and never shipped.
+
+Backend Jest suite: 105/105 passing.
+
+Security: neutral. No new data exposure; this is a stability/regression
+fix in the connection-lifecycle path plus a documentation/process fix
+(verify against a rebuilt image, not just a restarted container).

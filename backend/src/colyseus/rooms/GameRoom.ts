@@ -24,10 +24,6 @@ const DEFAULT_MAX_TURNS = 300;
 export class GameRoom extends Room<{ state: FogboundState }> {
   private readonly sessionToPlayerId = new Map<string, string>();
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
-  // Players who have sent player_ready (loaded their match scene and initial state).
-  // The turn timer does not arm until the current player is in this set, so a
-  // slow-loading device cannot trigger bot takeover before play begins.
-  private readonly readyPlayers = new Set<string>();
 
   onCreate(options: any) {
     // Two-player game: cap real client connections at 2 so matchmaking
@@ -51,7 +47,6 @@ export class GameRoom extends Room<{ state: FogboundState }> {
 
     this.onMessage('move_explorer', (client, message) => this.handleMoveExplorer(client, message));
     this.onMessage('end_turn', (client) => this.handleEndTurn(client));
-    this.onMessage('player_ready', (client) => this.handlePlayerReady(client));
 
     console.log(`GameRoom created: ${this.state.matchId}`);
   }
@@ -83,9 +78,6 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     const player = this.findPlayerBySession(client.sessionId);
     if (!player) return;
     player.isConnected = false;
-    // Clear ready state so the timer doesn't arm immediately on rejoin —
-    // the client must re-send player_ready once it has loaded the match scene.
-    this.readyPlayers.delete(player.playerId);
     console.log(`Player disconnected: ${player.playerId}`);
 
     // code 1000 = normal/intentional close; anything else = unexpected drop
@@ -184,14 +176,6 @@ export class GameRoom extends Room<{ state: FogboundState }> {
   private startTurnTimer() {
     if (this.turnTimer) clearTimeout(this.turnTimer);
     const playerId = this.state.turnState.currentPlayerId;
-    const player = this.state.players.get(playerId);
-    // Do not arm the inactivity timer until the player has loaded into the match
-    // (sent player_ready). Without this guard, a slow-loading device triggers
-    // bot takeover before play begins — the abandonment scenario from fun-gate v1.
-    // Bot players are always considered ready (they don't send a network message).
-    if (!player?.isBot && !this.readyPlayers.has(playerId)) {
-      return;
-    }
     // GDD: "When the timer expires, the game auto-selects the safest legal
     // move" — reuses the same bot brain rather than a bare turn-skip.
     this.turnTimer = setTimeout(() => this.playAutoTurn(playerId), this.state.turnTimerSeconds * 1000);
@@ -285,18 +269,6 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     action: string, payload: Record<string, unknown>, verdict: string,
   ): void {
     console.log(JSON.stringify({ event: 'action', matchId, turn, playerId, action, payload, verdict }));
-  }
-
-  private handlePlayerReady(client: Client) {
-    const player = this.findPlayerBySession(client.sessionId);
-    if (!player) return;
-    this.readyPlayers.add(player.playerId);
-    console.log(`[ACTION] match=${this.state.matchId} player=${player.playerId} event=player_ready`);
-    // If it's this player's turn and the timer was skipped because they weren't
-    // ready yet, arm it now that they've loaded.
-    if (player.playerId === this.state.turnState.currentPlayerId && !this.turnTimer) {
-      this.startTurnTimer();
-    }
   }
 
   /** Returns true (and ends the match) if checkWinCondition now reports a winner. */

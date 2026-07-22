@@ -711,6 +711,11 @@ Fixes shipped:
    `startTurnTimer()` returns early unless player is a bot or in readyPlayers.
    Client sends `player_ready` once after `finalize_initialization()`, gated by
    `_ready_sent` bool, reset in `disconnect_from_match()`. See Decision 092.
+   **REVERTED in a follow-up session — see Decision 094.** This caused a
+   WebSocket double-connection regression that disconnected every match before
+   any move could be made (below). `player_ready`/`readyPlayers` are gone from
+   both client and server; `startTurnTimer()` arms unconditionally again,
+   relying on the existing 60s `turnTimerSeconds` safety net instead.
 
 5. **SERVER ACTION LOG** (`backend/src/colyseus/GameRoom.ts`) — Added
    `logAction()` emitting one JSON line per move attempt: matchId, turn, playerId,
@@ -719,7 +724,7 @@ Fixes shipped:
 
 Test coverage:
 - 44/44 GUT tests pass (gc2–gc10; gc10 adds 13 new interaction-friction tests)
-- 90/90 Jest tests pass
+- 105/105 Jest tests pass (backend, after the Decision 094 revert)
 
 Verification status:
 - Board render, HUD layout, Undo-not-shown-at-start: ✅ confirmed via emulator
@@ -727,35 +732,46 @@ Verification status:
   bottom-right, fog board, no Undo visible)
 - Tap fix (int vs round): ✅ GUT test matrix; emulator screenshot confirms board
   reaches the match screen with correct starting-row rendering
-- Bot timer grace: ✅ server log shows `startTurnTimer()` skips arm until
-  player_ready arrives (second emulator session); see Decision 092 for details
-- Action log JSON lines: ⚠️ code present and Jest-verified, but no live paste
-  from a 2-emulator session — WebSocket double-connection bug dropped the session
-  before any moves were made. Live verification deferred (see below).
+- Action log JSON lines: ✅ live-verified (follow-up session, see Decision 094)
+  — real 2-emulator, 2-human match (`match_1784738538879`) produced
+  `verdict:"accepted"` for both players' real moves; a separate throwaway
+  diagnostic build (client turn-guard bypassed only in that build, reverted
+  before shipping) produced a live `verdict:"rejected:NOT_YOUR_TURN"` line.
 
-Known blocker — not fixed in this sprint:
-- **WebSocket double-connection bug**: A second `[WS_UPGRADE]` with the same
-  sessionId fires after initial state sync and `player_ready` send, causing
-  Colyseus to mark the player as disconnected. Root cause is in the Colyseus
-  GDExtension SDK reconnect logic; needs deeper SDK investigation. All
-  interactive verification (tap during live game, live action-log lines with
-  rejected moves) is blocked by this.
+Fixed in a follow-up session (see Decision 094 for full detail):
+- **WebSocket double-connection bug**: root-caused as an interaction between
+  the Colyseus GDExtension SDK (which opens a harmless internal second socket
+  on a client's first `send_message` call, always rejected 4002 by design) and
+  Decision 092's `player_ready` handshake, which happened to call
+  `send_message` at the exact moment that made the SDK propagate the 4002 as a
+  full disconnect instead of swallowing it silently. Fix was to revert 092
+  rather than patch the SDK. Also uncovered and fixed a process gap: the
+  backend Docker image had been stale for 12 days (only ever `restart`ed, never
+  rebuilt), silently invalidating this session's early "verification" against
+  unbuilt code — `docker compose build fogbound_backend` is now required after
+  any backend source change, not just a restart.
+- Live-verified with two real emulators as two real human players (not
+  solo-vs-bot) via "Play vs Player": both joined `match_1784738538879`, both
+  stayed connected with zero disconnects, both completed a real accepted move.
 
 Files changed:
 - `godot/scripts/board_coord.gd` — int() fix
 - `godot/scenes/match/input_controller.gd` — same-position guard
 - `godot/scenes/match/hud/hud.gd` — server_message subscriber hides undo on error
 - `godot/scenes/match/CameraController.gd` — drag handler + division by zoom
-- `godot/autoloads/network_manager.gd` — player_ready handshake
-- `backend/src/colyseus/GameRoom.ts` — readyPlayers Set + logAction()
+- `godot/autoloads/network_manager.gd` — player_ready handshake, later reverted
+  (Decision 094)
+- `backend/src/colyseus/GameRoom.ts` — readyPlayers Set + logAction(); readyPlayers
+  later reverted (Decision 094)
 - `godot/tests/gc10/test_interaction_friction.gd` — 13 new GUT tests
-- `docs/DECISIONS.md` — entries 091, 092, 093
+- `docs/DECISIONS.md` — entries 091, 092, 093, 094
 
-Documentation: updated docs/DECISIONS.md (entries 091–093); updated docs/AGENT.md
+Documentation: updated docs/DECISIONS.md (entries 091–094); updated docs/AGENT.md
 (this entry).
 
 Commits: `5ce6651` (godot fixes), `e55fae3` (server ready handshake),
-`6bcff74` (server action log).
+`6bcff74` (server action log); WS-regression revert + live verification
+committed in the follow-up session (see git log for hash).
 
 ---
 
