@@ -121,6 +121,7 @@ func disconnect_from_match() -> void:
 			_room.leave()
 	_room = null
 	_client = null  # drop the old Client so it (and its room/socket) can free
+	_ready_sent = false
 	_set_state(State.DISCONNECTED)
 
 ## Disconnect every handler we attached in connect_to_match. Guarded by
@@ -142,6 +143,10 @@ func _disconnect_room_signals(room) -> void:
 ## True while a room connection is live.
 var is_connected: bool:
 	get: return current_state == State.CONNECTED
+
+# Sent once per match after the initial state sync completes, so the server
+# knows this client has loaded and the bot-takeover timer can arm safely.
+var _ready_sent: bool = false
 
 # ─── Private: state machine ───────────────────────────────────────────────────
 
@@ -266,6 +271,7 @@ func _sync_all_from_state(state) -> void:
 
 	if not GameState.is_initialized:
 		StateMapper.finalize_initialization()
+		_send_player_ready()
 
 # ─── Private: helpers ─────────────────────────────────────────────────────────
 
@@ -277,6 +283,12 @@ func _log_state_counts(state) -> void:
 	print("[NetworkManager] state decoded — tiles:%d explorers:%d players:%d" % [
 		tiles_n, explorers_n, players_n
 	])
+
+func _send_player_ready() -> void:
+	if _ready_sent or not _room:
+		return
+	_ready_sent = true
+	_room.send_message("player_ready", {})
 
 func _collection_size(state, key: String) -> int:
 	var col = null
