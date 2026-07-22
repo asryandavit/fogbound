@@ -240,19 +240,29 @@ export class GameRoom extends Room<{ state: FogboundState }> {
   private handleMoveExplorer(client: Client, message: any) {
     const player = this.findPlayerBySession(client.sessionId);
     if (!player) return;
-    if (player.playerId !== this.state.turnState.currentPlayerId) {
+
+    const { explorerId, targetX, targetY } = message as { explorerId: string; targetX: number; targetY: number };
+    const turn = this.state.turnState.turnNumber;
+    const matchId = this.state.matchId;
+    const playerId = player.playerId;
+
+    if (playerId !== this.state.turnState.currentPlayerId) {
+      this.logAction(matchId, turn, playerId, 'move_explorer',
+        { explorerId, targetX, targetY }, 'rejected:NOT_YOUR_TURN');
       client.send('error', { code: 'NOT_YOUR_TURN' });
       return;
     }
 
-    const { explorerId, targetX, targetY } = message as { explorerId: string; targetX: number; targetY: number };
     const pureState = this.toPureState();
-
     if (!isValidMove(pureState, explorerId, { x: targetX, y: targetY })) {
+      this.logAction(matchId, turn, playerId, 'move_explorer',
+        { explorerId, targetX, targetY }, 'rejected:INVALID_MOVE');
       client.send('error', { code: 'INVALID_MOVE' });
       return;
     }
 
+    this.logAction(matchId, turn, playerId, 'move_explorer',
+      { explorerId, targetX, targetY }, 'accepted');
     const nextState = applyMove(pureState, explorerId, { x: targetX, y: targetY });
     this.applyPureState(nextState);
     if (this.checkForWinner()) return;
@@ -263,7 +273,18 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     const player = this.findPlayerBySession(client.sessionId);
     if (!player) return;
     if (player.playerId !== this.state.turnState.currentPlayerId) return;
+    this.logAction(this.state.matchId, this.state.turnState.turnNumber,
+      player.playerId, 'end_turn', {}, 'accepted');
     this.advanceTurn();
+  }
+
+  /** One structured log line per player action — match_id, turn, player_id,
+   *  action, payload summary, verdict. Non-sensitive: coords and IDs only. */
+  private logAction(
+    matchId: string, turn: number, playerId: string,
+    action: string, payload: Record<string, unknown>, verdict: string,
+  ): void {
+    console.log(JSON.stringify({ event: 'action', matchId, turn, playerId, action, payload, verdict }));
   }
 
   private handlePlayerReady(client: Client) {
