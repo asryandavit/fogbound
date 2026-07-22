@@ -31,7 +31,9 @@ static func to_world_position(coord: Vector2i, board_rows: int) -> Vector2:
 
 ## Inverse of to_world_position. flip_row is a self-inverse ((rows-1)-y applied
 ## twice returns y), so the same function un-flips the row back to server space.
+## int() (floor for non-negative values) maps the FULL tile cell to one coord;
+## round() would shift the right half of every cell to the adjacent cell.
 static func from_world_position(world_pos: Vector2, board_rows: int) -> Vector2i:
-    var col := int(round(world_pos.x / TILE_PX))
-    var row := int(round(world_pos.y / TILE_PX))
+    var col := int(world_pos.x / TILE_PX)
+    var row := int(world_pos.y / TILE_PX)
     return Vector2i(col, flip_row(row, board_rows))

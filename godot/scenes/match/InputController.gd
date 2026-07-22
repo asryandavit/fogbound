@@ -34,6 +34,13 @@ func on_tap(coord: Vector2i) -> void:
             _selected_explorer_id = tapped_id
         return
 
+    # Guard: don't send a move to the explorer's current position — the server
+    # would reject it (INVALID_MOVE) and the undo button would flash phantom.
+    var e: Dictionary = GameState.explorers.get(_selected_explorer_id, {})
+    if coord.x == int(e.get("x", -1)) and coord.y == int(e.get("y", -1)):
+        _selected_explorer_id = ""
+        return
+
     network_sender.send_move(_selected_explorer_id, coord.x, coord.y)
     _selected_explorer_id = ""
 

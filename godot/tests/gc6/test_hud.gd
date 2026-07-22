@@ -44,3 +44,14 @@ func test_exit_button_visible() -> void:
 
 func test_exit_button_wired_to_leave_match() -> void:
     assert_true(hud.exit_button.is_connected("pressed", hud._on_exit_pressed))
+
+func test_undo_hides_on_server_error() -> void:
+    NetworkManager.move_sent.emit()
+    assert_true(hud.undo_button.visible)
+    NetworkManager.server_message.emit("error", {})
+    assert_false(hud.undo_button.visible)
+
+func test_undo_not_hidden_on_non_error_message() -> void:
+    NetworkManager.move_sent.emit()
+    NetworkManager.server_message.emit("match_ended", {})
+    assert_true(hud.undo_button.visible)

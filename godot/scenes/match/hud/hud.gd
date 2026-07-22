@@ -14,6 +14,7 @@ func _ready() -> void:
 	exit_button.pressed.connect(_on_exit_pressed)
 	GameState.turn_changed.connect(_on_turn_changed)
 	NetworkManager.move_sent.connect(_on_move_sent)
+	NetworkManager.server_message.connect(_on_server_message)
 	_update_turn_ui()
 
 func _update_turn_ui() -> void:
@@ -27,6 +28,10 @@ func _on_turn_changed() -> void:
 
 func _on_move_sent() -> void:
 	undo_button.visible = true
+
+func _on_server_message(type: String, _data: Dictionary) -> void:
+	if type == "error":
+		undo_button.visible = false
 
 func _on_end_turn_pressed() -> void:
 	NetworkManager.send_end_turn()

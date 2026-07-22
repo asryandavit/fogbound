@@ -22,31 +22,32 @@ func _seed_grid(size: int) -> void:
             }
 
 func test_board_paints_terrain_on_initialized() -> void:
-    _seed_grid(3)
+    # 7×7 is the minimum valid board size (_validated_board_rows() rejects < 7)
+    _seed_grid(7)
     GameState.mark_initialized()
     for tile_data in GameState.tiles.values():
-        var coord := BoardCoord.to_tilemap_coord(tile_data, 3)
+        var coord := BoardCoord.to_tilemap_coord(tile_data, 7)
         assert_true(board.get_cell_source_id(coord) >= 0,
             "expected a painted cell at %s for tile %s" % [coord, tile_data])
 
 func test_fog_cell_cleared_on_reveal() -> void:
-    _seed_grid(3)
+    _seed_grid(7)
     GameState.mark_initialized()
     var tile_data := {
         "x": 1, "y": 1, "tileType": "grass", "isRevealed": true,
         "treasureType": "none", "treasureValue": 0, "isOccupied": false,
     }
     GameState.set_tile("1,1", tile_data)
-    var coord := BoardCoord.to_tilemap_coord(tile_data, 3)
+    var coord := BoardCoord.to_tilemap_coord(tile_data, 7)
     assert_eq(fog.get_cell_source_id(coord), -1)
 
 func test_fog_cell_present_on_hidden() -> void:
-    _seed_grid(3)
+    _seed_grid(7)
     GameState.mark_initialized()
     var tile_data := {
         "x": 1, "y": 1, "tileType": "grass", "isRevealed": false,
         "treasureType": "none", "treasureValue": 0, "isOccupied": false,
     }
     GameState.set_tile("1,1", tile_data)
-    var coord := BoardCoord.to_tilemap_coord(tile_data, 3)
+    var coord := BoardCoord.to_tilemap_coord(tile_data, 7)
     assert_true(fog.get_cell_source_id(coord) >= 0)

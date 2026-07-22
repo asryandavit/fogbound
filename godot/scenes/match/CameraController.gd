@@ -115,8 +115,16 @@ func apply_pinch_delta(delta: float) -> void:
 func _input(event: InputEvent) -> void:
     if event is InputEventMagnifyGesture:
         apply_pinch_delta(event.factor - 1.0)
+    elif event is InputEventScreenDrag:
+        _handle_drag(event)
     elif event is InputEventScreenTouch and event.pressed:
         _handle_tap_for_double_tap()
+
+## Single-finger drag pan. Divides screen-space delta by zoom so a
+## 1px finger movement equals 1 world-unit regardless of zoom level.
+## Clamps immediately so you can never scroll past the board edge.
+func _handle_drag(event: InputEventScreenDrag) -> void:
+    position = _clamp_to_board(position - event.relative / zoom.x)
 
 func _handle_tap_for_double_tap() -> void:
     var now := Time.get_ticks_msec() / 1000.0

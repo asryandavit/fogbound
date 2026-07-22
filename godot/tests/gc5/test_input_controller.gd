@@ -47,3 +47,13 @@ func test_game_state_unchanged_after_tap() -> void:
     controller.on_tap(Vector2i(1, 2))
     assert_eq(GameState.tiles, tiles_before)
     assert_eq(GameState.explorers, explorers_before)
+
+func test_tap_same_cell_does_not_send_move() -> void:
+    # Phantom undo regression: selecting then tapping the explorer's own cell
+    # must NOT call send_move (server would reject as INVALID_MOVE and undo flashes).
+    NetworkManager.local_player_id = "p1"
+    GameState.current_player_id = "p1"
+    GameState.explorers["e1"] = {"explorerId": "e1", "playerId": "p1", "x": 1, "y": 1}
+    controller.on_tap(Vector2i(1, 1))  # select
+    controller.on_tap(Vector2i(1, 1))  # same cell — must be a no-op
+    assert_false(mock_net.send_move_called)
