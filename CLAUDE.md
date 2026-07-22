@@ -342,3 +342,13 @@ When I say "logs" → get Unity Console logs
 3. git add docs/AGENT.md
 4. git commit -m "docs: update sprint tasks"
 5. git push origin develop
+
+== SESSION SYNC PROTOCOL ==
+Repo docs are the single source of truth: docs/DECISIONS.md, docs/CONTEXT.md,
+docs/GDD.md, docs/AGENT.md. Every working session (any AI agent, any thread)
+must: (1) read these fresh at session start; (2) before ending, write every
+decision made and every state change into the appropriate doc — a session
+must never end with docs contradicting the code or the decisions taken;
+(3) if instructions received during a session contradict current repo docs,
+STOP and flag the conflict instead of proceeding — resolve by recency and
+repo truth. Stale plans from old sessions must never overwrite newer state.

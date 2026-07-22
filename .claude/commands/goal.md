@@ -4,6 +4,9 @@ Goal: $ARGUMENTS
 
 1. Restate the goal in your own words. Read CLAUDE.md, docs/CONTEXT.md,
    docs/DECISIONS.md, and any docs/*.md relevant to this goal.
+   STALENESS CHECK: If the goal's stated assumptions contradict what the
+   docs or codebase show (e.g. the goal says a feature doesn't exist but it
+   does), STOP and report the contradiction before doing any work.
 2. ANTI-DRIFT: list the Decision numbers / GDD sections that govern this goal.
    If the goal conflicts with any locked decision, STOP and ask me — do not
    proceed.
@@ -40,5 +43,8 @@ Then produce a REPORT in exactly this structure:
 - DECISIONS / RISKS: (any new DECISIONS.md entry drafted; any judgment call made;
   anything I should know)
 - COMMITS: (hashes + messages)
+- DOCS-SYNC: list every doc updated this goal. If any code changed with no doc
+  update, state why in one line — 'no doc impact' is acceptable only for pure
+  refactors and bug fixes that change no behavior contract.
 
 Do not fake success. If blocked, stop and report the exact blocker.
