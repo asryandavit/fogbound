@@ -516,3 +516,16 @@ exactly the kind of thing Decision 080 wants shipping first, not deferred.
   / colorblind commitments). Spoken move commands for hands-free or
   low-vision play. Heaviest of the three — needs speech recognition, a grid
   command grammar, disambiguation, and a mic-permission/privacy pass. V2+.
+
+### Design backlog (post-fun-gate)
+
+- **Treasure variety** (from fun-gate v1, 2026-07-22): multiple treasure types
+  with different point values (e.g. coin < artifact < chest), mirroring
+  tile variety. Rationale: "what's under the next tile" anticipation is the
+  core retention hook of fog-of-war games; treasure variety multiplies it.
+- **Score visibility:** current scores must be visible during play (HUD),
+  since different treasure values make the score state non-obvious.
+- **Treasure/carry feedback:** player must SEE that yellow = takeable, that an
+  explorer is carrying, and the moment points land at the base.
+  (Confirmed rule from v1: carry to base scores it, then hunt the next —
+  design communicated nothing of this; mechanic itself validated.)
