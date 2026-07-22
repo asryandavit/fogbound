@@ -16,6 +16,7 @@ game/*.user
 game/.vs/
 game/ExportedObj/
 game/memoryCaptures/
+game/
 
 # Unity MCP (machine-specific and auto-generated)
 game/.mcp.json
