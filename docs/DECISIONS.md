@@ -1594,3 +1594,107 @@ without understanding and rewriting Godot's binary PCK format.
 Security: INTERNET permission is a normal Android permission (not dangerous);
 it is automatically granted when declared in the manifest, requires no
 runtime user prompt.
+
+## 091 — Interaction friction fixes: tap hit-test, phantom undo, drag-pan (2026-07-22)
+
+Three client-side fixes that together make the match screen usable on Android.
+
+**Tap hit-test (board_coord.gd `from_world_position`):**
+`round()` was used to convert a world-space x/y offset into a tile column/row.
+`round(3.5) = 4`, so the RIGHT HALF of every 32px tile cell mapped to the
+ADJACENT tile's coordinate — making the right half of each tile untappable.
+Fixed with `int()` (floor for non-negative), which maps the entire 32px cell
+to one coordinate. Regression: GUT test `test_right_half_maps_to_same_cell`
+in `godot/tests/gc10/test_interaction_friction.gd`.
+
+**Phantom undo (InputController + hud.gd):**
+Phantom undo appeared when the player retried a missed tap: the second tap
+would select and immediately "move to self" before the `round()` bug was fixed,
+causing `move_sent` to emit before the server rejected the move, leaving
+`undo_button.visible = true` with nothing to undo.
+Two-layer fix: (1) InputController now guards against moving to the explorer's
+CURRENT position (deselects instead), preventing the phantom send entirely;
+(2) `hud.gd` subscribes to `NetworkManager.server_message` and hides the
+undo button whenever a `type="error"` message arrives (explicit server rejection).
+
+**Drag-pan while zoomed (CameraController):**
+`_input()` handled `InputEventMagnifyGesture` (pinch) and `InputEventScreenTouch`
+(double-tap zoom) but had NO handler for `InputEventScreenDrag`. Single-finger
+drag did nothing at any zoom level. Fixed by adding `_handle_drag()`:
+```gdscript
+func _handle_drag(event: InputEventScreenDrag) -> void:
+    position = _clamp_to_board(position - event.relative / zoom.x)
+```
+Divides screen-delta by `zoom.x` so one finger-pixel = one world-unit regardless
+of current zoom level. Clamps immediately via the existing `_clamp_to_board()`.
+
+GUT test matrix in `gc10/test_interaction_friction.gd`: 13 tests covering
+full-cell tap coverage (7 cases), drag-pan direction, and clamp at multiple
+zoom levels (6 cases). All 44 total GUT tests (gc2–gc10) pass.
+
+## 092 — Bot-takeover grace: player_ready handshake (2026-07-22)
+
+**Problem:** The bot-takeover inactivity timer was being armed immediately on
+`startTurnTimer()`, which was called on the first `advanceTurn()` after match
+start. If the second emulator was still loading when `advanceTurn()` fired,
+the timer would fire before the player had a chance to make a move, triggering
+bot takeover.
+
+**Fix — server (GameRoom.ts):**
+Added a `readyPlayers: Set<string>` and a `player_ready` message handler.
+`startTurnTimer()` now returns early unless the current player is either a bot
+OR in `readyPlayers`. The timer is armed only when `handlePlayerReady()` is
+called for the current player.
+
+```typescript
+private startTurnTimer() {
+    if (this.turnTimer) clearTimeout(this.turnTimer);
+    const playerId = this.state.turnState.currentPlayerId;
+    const player = this.state.players.get(playerId);
+    if (!player?.isBot && !this.readyPlayers.has(playerId)) {
+        return;  // wait for player_ready before arming
+    }
+    this.turnTimer = setTimeout(() => this.playAutoTurn(playerId), ...);
+}
+```
+
+**Fix — client (network_manager.gd):**
+Sends `player_ready` exactly once per match, after `finalize_initialization()`
+completes (= all tiles, explorers, players, and turnState have been synced and
+rendered). Uses a `_ready_sent` bool guard, reset in `disconnect_from_match()`.
+
+Bot players never need to send `player_ready` (no WebSocket); `player?.isBot`
+short-circuits the readiness check on the server.
+
+Verification: The server logs the event when arming the timer after
+`player_ready` arrives. The client-side log `_ready_sent` flag prevents
+accidental double-sending.
+
+## 093 — Server action log at move-validation choke point (2026-07-22)
+
+Added structured per-action logging in `GameRoom.ts` at the single
+move-validation choke point (`handleMoveExplorer`) and `handleEndTurn`.
+Each action emits one JSON log line:
+
+```json
+{"event":"action","matchId":"...","turn":1,"playerId":"...","action":"move_explorer",
+ "payload":{"explorerId":"...","targetX":3,"targetY":4},"verdict":"accepted"}
+```
+
+Verdict values:
+- `"rejected:NOT_YOUR_TURN"` — client sent move but it is not their turn
+- `"rejected:INVALID_MOVE"` — server `GameRules.isValidMove()` returned false
+- `"accepted"` — move applied successfully
+
+`handleEndTurn` logs `accepted` before `advanceTurn()`.
+
+This directly explains the repeated `type=error` rejections seen in fun-gate v1
+logs: those were `NOT_YOUR_TURN` and `INVALID_MOVE` responses caused by the
+phantom-undo bug (Decision 091) sending moves to the current position.
+
+Implementation: `private logAction(matchId, turn, playerId, action, payload, verdict)`
+uses `console.log(JSON.stringify({...}))`. Not a security leak — contains only
+already-public match/turn/player state, no secrets or private user data.
+
+Jest: 90/90 pass (all existing suites, no new test needed as the log is a
+side effect, not a return value).

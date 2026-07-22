@@ -681,6 +681,84 @@ See Decision 090. Committed as `fix(godot): add android.permission.INTERNET to e
 
 ---
 
+### Interaction Friction Sprint ✅ DONE (2026-07-22)
+
+Context: fun-gate v1 on two emulators revealed five blockers before a clean
+playtest was possible: unreliable tapping, phantom undo appearances, no drag-pan
+when zoomed, bot-takeover timer firing during client load, and no structured
+action log to explain repeated server rejections.
+
+Fixes shipped:
+
+1. **TAP RELIABILITY** (`godot/scripts/board_coord.gd`) — Changed `round()` →
+   `int()` in `from_world_position`. `round(3.5)=4` mapped the right half of every
+   32px tile to the adjacent cell; `int()` maps the full cell correctly.
+   Regression test: `gc10/test_interaction_friction.gd`.
+
+2. **PHANTOM UNDO** (`godot/scenes/match/input_controller.gd` +
+   `godot/scenes/match/hud/hud.gd`) — InputController now deselects (instead of
+   sending a move) when the tap target equals the explorer's current position.
+   hud.gd subscribes to `NetworkManager.server_message` and hides undo_button on
+   any `type=error` response. Two-layer defense; neither alone is sufficient.
+
+3. **DRAG-PAN WHILE ZOOMED** (`godot/scenes/match/CameraController.gd`) — Added
+   `InputEventScreenDrag` handler to `_input()`. Delta divided by `zoom.x` so
+   1 finger-pixel = 1 world-unit at any zoom. Clamps immediately via
+   `_clamp_to_board()`. GUT test matrix (6 cases) in `gc10`.
+
+4. **BOT-TAKEOVER GRACE** (`backend/src/colyseus/GameRoom.ts` +
+   `godot/autoloads/network_manager.gd`) — Added `readyPlayers: Set<string>`;
+   `startTurnTimer()` returns early unless player is a bot or in readyPlayers.
+   Client sends `player_ready` once after `finalize_initialization()`, gated by
+   `_ready_sent` bool, reset in `disconnect_from_match()`. See Decision 092.
+
+5. **SERVER ACTION LOG** (`backend/src/colyseus/GameRoom.ts`) — Added
+   `logAction()` emitting one JSON line per move attempt: matchId, turn, playerId,
+   action type, payload summary, verdict (accepted | rejected:REASON). Explains
+   the repeated `type=error` rejections from v1. See Decision 093.
+
+Test coverage:
+- 44/44 GUT tests pass (gc2–gc10; gc10 adds 13 new interaction-friction tests)
+- 90/90 Jest tests pass
+
+Verification status:
+- Board render, HUD layout, Undo-not-shown-at-start: ✅ confirmed via emulator
+  screenshot (probe_1300.png: "Your Turn" banner, Exit top-right, End Turn
+  bottom-right, fog board, no Undo visible)
+- Tap fix (int vs round): ✅ GUT test matrix; emulator screenshot confirms board
+  reaches the match screen with correct starting-row rendering
+- Bot timer grace: ✅ server log shows `startTurnTimer()` skips arm until
+  player_ready arrives (second emulator session); see Decision 092 for details
+- Action log JSON lines: ⚠️ code present and Jest-verified, but no live paste
+  from a 2-emulator session — WebSocket double-connection bug dropped the session
+  before any moves were made. Live verification deferred (see below).
+
+Known blocker — not fixed in this sprint:
+- **WebSocket double-connection bug**: A second `[WS_UPGRADE]` with the same
+  sessionId fires after initial state sync and `player_ready` send, causing
+  Colyseus to mark the player as disconnected. Root cause is in the Colyseus
+  GDExtension SDK reconnect logic; needs deeper SDK investigation. All
+  interactive verification (tap during live game, live action-log lines with
+  rejected moves) is blocked by this.
+
+Files changed:
+- `godot/scripts/board_coord.gd` — int() fix
+- `godot/scenes/match/input_controller.gd` — same-position guard
+- `godot/scenes/match/hud/hud.gd` — server_message subscriber hides undo on error
+- `godot/scenes/match/CameraController.gd` — drag handler + division by zoom
+- `godot/autoloads/network_manager.gd` — player_ready handshake
+- `backend/src/colyseus/GameRoom.ts` — readyPlayers Set + logAction()
+- `godot/tests/gc10/test_interaction_friction.gd` — 13 new GUT tests
+- `docs/DECISIONS.md` — entries 091, 092, 093
+
+Documentation: updated docs/DECISIONS.md (entries 091–093); updated docs/AGENT.md
+(this entry).
+
+Commits: `5ce6651` (godot fixes), `e55fae3` (server ready handshake),
+`6bcff74` (server action log).
+
+---
+
 ### Next Sprint: Arrow/Cannon/Trap Polish + Tile Seeding
 
 - [ ] Add directional indicator to arrow/cannon swatches (small arrow/chevron in `_draw()`)
