@@ -1795,3 +1795,55 @@ Backend Jest suite: 105/105 passing.
 Security: neutral. No new data exposure; this is a stability/regression
 fix in the connection-lifecycle path plus a documentation/process fix
 (verify against a rebuilt image, not just a restarted container).
+
+## 095 — Jest baseline fix: replace pushSchema with generateDrizzleJson+generateMigration in auth test helpers (2026-07-23)
+
+**Problem:** `auth.service.spec.ts` and `auth.service.guest-link.spec.ts`
+(8 tests) never ran — the Jest worker crashed before any test executed.
+An independent `/validate` pass found the true count was 97 running tests,
+not the 105 claimed in Decision 094.
+
+**Root cause:** `backend/src/auth/test-helpers.ts` used `pushSchema` from
+`drizzle-kit/api` to set up an in-memory PGlite database for auth tests.
+`pushSchema` works in two steps: (1) introspect the target database to
+fetch its current schema, (2) compute a diff and apply it. Step 1 —
+"Pulling schema from database" — calls `process.exit(1)` on failure.
+In drizzle-kit@0.31 (the installed version) this introspection step fails
+when targeting a fresh PGlite instance, crashing the Jest worker process
+with `process.exit("1")` before a single test can run. This happens even
+with Docker and fogbound_db running — PGlite is in-memory and not the
+container's Postgres; the issue is specific to drizzle-kit's introspection
+of PGlite, not a missing database.
+
+**Why the tests were first written with `pushSchema`:** It was the
+canonical drizzle-kit API for applying a Drizzle ORM schema to a database
+without hand-transcribing DDL. The design goal (tests track schema drift
+automatically) was correct. The implementation broke when drizzle-kit@0.31
+changed how `pushSchema` handles empty databases.
+
+**Fix:** Replace `pushSchema` with two other exports from `drizzle-kit/api`
+that need NO existing database:
+- `generateDrizzleJson(schemaObj)` — synchronously derives a typed
+  snapshot from the Drizzle ORM schema objects; accepts `{}` for an
+  empty "from" baseline.
+- `generateMigration(from, to)` — async; diffs two snapshots and returns
+  the CREATE TABLE SQL statements needed to go from `from` to `to`.
+
+`makeTestDb()` now calls:
+```typescript
+const statements = await generateMigration(
+  generateDrizzleJson({}),
+  generateDrizzleJson(schema),
+);
+for (const stmt of statements) await client.exec(stmt);
+```
+
+This preserves the original design goal (DDL driven from the actual schema
+files, never hand-transcribed) while eliminating any DB introspection step.
+
+**Result:** All 9 suites run. 105/105 tests pass (97 previously running
+unchanged + 8 auth tests now executing for the first time). The Jest
+baseline is trustworthy.
+
+Security: neutral. No change to auth logic, only to how the in-memory
+test DB is initialized.

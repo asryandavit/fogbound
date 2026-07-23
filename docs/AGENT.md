@@ -724,7 +724,11 @@ Fixes shipped:
 
 Test coverage:
 - 44/44 GUT tests pass (gc2–gc10; gc10 adds 13 new interaction-friction tests)
-- 105/105 Jest tests pass (backend, after the Decision 094 revert)
+- 105/105 Jest tests pass (backend) — NOTE: the 105 count was NOT fully valid
+  at time of original commit; auth.service.spec.ts and auth.service.guest-link.spec.ts
+  (8 tests) crashed at worker init due to drizzle-kit@0.31 pushSchema calling
+  process.exit on PGlite. Fixed in the Jest baseline sprint (Decision 095);
+  all 105 now run and pass.
 
 Verification status:
 - Board render, HUD layout, Undo-not-shown-at-start: ✅ confirmed via emulator
@@ -772,6 +776,29 @@ Documentation: updated docs/DECISIONS.md (entries 091–094); updated docs/AGENT
 Commits: `5ce6651` (godot fixes), `e55fae3` (server ready handshake),
 `6bcff74` (server action log); WS-regression revert + live verification
 committed in the follow-up session (see git log for hash).
+
+---
+
+### Jest Baseline Fix ✅ DONE (2026-07-23)
+
+An independent `/validate` pass found that the claimed "105/105" Jest count
+was false: 97 tests ran, and 8 auth tests (auth.service.spec.ts × 2,
+auth.service.guest-link.spec.ts × 6) crashed the Jest worker before running.
+
+Root cause: `test-helpers.ts` used `pushSchema` from `drizzle-kit/api`
+to set up PGlite. drizzle-kit@0.31 changed `pushSchema` to introspect the
+target DB first ("Pulling schema from database..."), which calls process.exit(1)
+when the introspection fails on a fresh PGlite instance — crashing the
+Jest worker before any test in that suite ran.
+
+Fix: replaced `pushSchema` with `generateDrizzleJson` + `generateMigration`
+(also from `drizzle-kit/api`). These generate CREATE TABLE SQL purely from
+the ORM schema objects with no DB connection needed. Same design goal
+(DDL driven from the actual schema files), no introspection, no crash.
+
+Files changed: `backend/src/auth/test-helpers.ts`
+Result: 105/105 tests pass across all 9 suites. Baseline is now trustworthy.
+Decision: 095
 
 ---
 

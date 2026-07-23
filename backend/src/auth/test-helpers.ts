@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
-import { pushSchema } from 'drizzle-kit/api';
+import { generateDrizzleJson, generateMigration } from 'drizzle-kit/api';
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT, type JWK } from 'jose';
 import * as schema from '../database/schema';
 import { AppleTokenService } from './apple-token.service';
@@ -24,18 +24,20 @@ export async function makeAppleTokenService(configService: ConfigService) {
   return { service, signToken };
 }
 
-// Real (in-memory) Postgres-compatible DB via pglite, schema pushed straight
-// from the actual Drizzle definitions (drizzle-kit's pushSchema) rather than
-// hand-transcribed DDL — so tests can never silently drift from what
-// players.schema.ts actually declares. Requires Node's --experimental-vm-modules
-// (see package.json's "test" script) — pglite's WASM loading needs it.
+// Real (in-memory) Postgres-compatible DB via pglite, DDL generated straight
+// from the actual Drizzle ORM schema definitions — so tests can never silently
+// drift from what the schema files declare. generateDrizzleJson derives a
+// schema snapshot from the ORM objects (no DB connection needed); generateMigration
+// diffs it against an empty baseline to produce pure CREATE TABLE SQL that is
+// executed directly on PGlite. This replaces pushSchema (drizzle-kit@0.31
+// changed pushSchema to introspect the target DB first, calling process.exit
+// on failure, which crashed the Jest worker before any test ran — Decision 095).
 export async function makeTestDb() {
   const client = new PGlite();
-  // pushSchema's declared signature wants a schema-less PgDatabase; the
-  // schema-typed instance below (used for actual queries) doesn't
-  // structurally match it. Same underlying client, two typed views.
-  const { apply } = await pushSchema(schema, drizzle(client));
-  await apply();
+  const statements = await generateMigration(generateDrizzleJson({}), generateDrizzleJson(schema));
+  for (const stmt of statements) {
+    await client.exec(stmt);
+  }
   const db = drizzle(client, { schema });
   return { db, client };
 }
