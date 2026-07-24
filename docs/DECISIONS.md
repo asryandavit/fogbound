@@ -1847,3 +1847,17 @@ baseline is trustworthy.
 
 Security: neutral. No change to auth logic, only to how the in-memory
 test DB is initialized.
+
+## 096 — PreToolUse safety hook: veto destructive shell commands (2026-07-24)
+
+Decision: Added .claude/hooks/block-dangerous.sh, wired as a PreToolUse
+hook on the Bash tool in .claude/settings.json. Vetoes: rm -rf/-fr/-r -f/
+--recursive --force outside /tmp; git push --force/-f unless an explicit
+feature branch (name containing /) is the target (--force-with-lease
+allowed); git reset --hard; git clean -fd without -n; docker compose/stack
+down -v; docker volume rm; SQL DROP DATABASE/TABLE/TRUNCATE; chmod -R 777.
+Rationale: solo-dev, single develop branch, autonomous commits — hook is
+downside protection against accidental irreversible shell commands from
+any agent running in this project. False-positive cost is non-trivial
+(hook gets disabled if it cries wolf), so only well-known dangerous forms
+are blocked.

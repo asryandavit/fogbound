@@ -32,8 +32,11 @@ game/com.IvanMurzak.Unity.MCP.Installer.Tests.csproj
 claude/
 .claude/*
 ?*.claude
-# Project-level slash commands ARE shared
+# Project-level slash commands and safety hooks ARE shared
 !.claude/commands/
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/block-dangerous.sh
 
 # Environment files
 docker/.env
