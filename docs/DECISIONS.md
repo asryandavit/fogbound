@@ -1861,3 +1861,45 @@ downside protection against accidental irreversible shell commands from
 any agent running in this project. False-positive cost is non-trivial
 (hook gets disabled if it cries wolf), so only well-known dangerous forms
 are blocked.
+
+## 097 — AI tooling verdicts (2026-07-23)
+
+Correction: an earlier session's "Decision 059 = phase-gated tooling plan"
+does not exist in this repo. Decision 059 is the GUT 9.6.0 GDScript testing
+framework pin, unrelated to tooling adoption. A phase-gated tooling plan was
+drafted at some point but never landed as a numbered decision here — it was
+never adopted. Any external reference to "Decision 059" as a tooling plan is
+stale and should be disregarded.
+
+CODE REVIEW: use the already-wired /code-review slash command. Do NOT build
+a custom code-reviewer agent and do NOT reference subagent_type
+"code-reviewer" — it does not exist in this project (confirmed: every
+invocation attempt has errored with "Agent type 'code-reviewer' not found").
+A prior fallback ran review prompts on an unrestricted general-purpose agent
+with Write/Edit access; that is not a reviewer and must not be repeated. For
+an ad-hoc guaranteed-read-only pass, use subagent_type "Explore" instead.
+
+ADOPTED (done): PreToolUse danger hook — see Decision 096.
+
+ADOPTED (done): cross-session validation protocol — /validate in a fresh
+session for high-stakes or hard-to-verify work. Its first run caught a false
+105/105 Jest count that four prior reports had passed along unchallenged.
+
+SKIP: GDAI screenshot MCP ($19). `adb exec-out screencap -p` already gives
+working emulator screenshots at zero cost; GDAI adds a permanent MCP context
+floor and an unauditable commercial dependency for a capability already in
+hand.
+
+DEFER: superpowers plan-gate/TDD — until fog StateView hardening
+(Decision 049). Near-term work is empirical UI feel-tuning, which TDD
+ceremony taxes without helping; it pays off on deterministic
+security-critical server logic.
+
+DEFER: debugger subagent — until /validate plus the action log
+(Decision 093) are shown to leave a real diagnostic gap. Avoid overlapping
+tools.
+
+DEFER (unchanged): GitHub issues MCP, mobile-mcp/Maestro, skill-creator.
+
+PRINCIPLE: every tool must earn a permanent context seat. A lean toolset is
+a correctness feature for a solo dev, not just tidiness.
