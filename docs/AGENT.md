@@ -802,8 +802,84 @@ Decision: 095
 
 ---
 
-### Next Sprint: Arrow/Cannon/Trap Polish + Tile Seeding
+### Safety Hook + AI Tooling Verdicts ✅ DONE (2026-07-24)
 
+Context: after the Jest baseline fix, closed out two standing gaps for a
+solo-dev, single-branch, autonomous-commit workflow: no downside protection
+against destructive shell commands, and no locked decision on which AI
+tooling (code review, validation, MCP add-ons) is actually adopted vs. still
+speculative.
+
+- **PreToolUse danger hook** (Decision 096): `.claude/hooks/block-dangerous.sh`,
+  wired on the Bash tool in `.claude/settings.json`. Vetoes `rm -rf`/`-fr`/
+  separated/long-form outside `/tmp`; `git push --force`/`-f` unless an
+  explicit feature branch is named; `git reset --hard`; `git clean -fd`
+  without `-n`; `docker compose/stack down -v`; `docker volume rm`; SQL
+  `DROP DATABASE`/`DROP TABLE`/`TRUNCATE`; `chmod -R 777`. Test matrix
+  (8 block / 7 pass cases) confirmed clean before commit.
+- **AI tooling verdicts locked** (Decision 097): use the already-wired
+  `/code-review` slash command for review — do NOT build a custom
+  code-reviewer agent or reference `subagent_type: "code-reviewer"`; it does
+  not exist in this project (every invocation attempt errors with "Agent
+  type 'code-reviewer' not found," confirmed via transcript audit of session
+  `a20b3a02`). A prior fallback ran review prompts on an unrestricted
+  general-purpose agent with Write/Edit access — not a reviewer, not to be
+  repeated; use `subagent_type: "Explore"` for a guaranteed-read-only pass.
+  `/validate` cross-session protocol adopted (caught the false 105/105 Jest
+  count — see Jest Baseline Fix above). GDAI screenshot MCP ($19) skipped —
+  `adb exec-out screencap -p` already free. superpowers TDD/plan-gate and a
+  debugger subagent deferred, not rejected — see Decision 097 for trigger
+  conditions.
+- **Correction**: an earlier "Decision 059 = phase-gated tooling plan"
+  reference is not real. Decision 059 is the GUT 9.6.0 GDScript testing
+  framework pin — unrelated. A tooling plan was drafted at some point but
+  never landed as a numbered decision in this repo. Any external reference
+  to it is stale.
+
+Documentation: updated docs/DECISIONS.md (added entries 096, 097); this
+AGENT.md entry.
+
+---
+
+### Current Milestone: Fun-Gate Playtest v2
+
+Baseline (Jest 105/105, GUT 44/44) and the safety net (danger hook, tooling
+verdicts) are now in place. The four interaction-friction fixes from the
+previous sprint (tap hit-test, phantom undo, drag-pan, bot-takeover grace
+revert) were verified individually but never played through together as one
+continuous session — that confirmation is the actual gate now, not more
+automated coverage.
+
+Next 3 tasks:
+1. **FUN-GATE V2**: clean 2-emulator match; self-verify tap / undo /
+   drag-pan live — the four friction fixes have never been independently
+   confirmed together; this is a hands-on check, not an automated one.
+2. Answer the fun-gate question directly: Play Again, or put the phone
+   down — and why?
+3. Depending on that answer: a legibility pass (treasure/carry affordance)
+   or a loop redesign.
+
+Tech debt (not blocking, tracked for later):
+- Fog enforcement is visual-only (Decision 049) — needs StateView hardening
+  before any competitive launch.
+- `docs/CONTEXT.md` still describes the Unity stack as if partially active
+  (a "Unity Package Stack" section, "Mobile: Unity builds natively to iOS
+  and Android") — confirmed stale; needs a Godot-only cleanup pass.
+- Danger hook (Decision 096): the `git commit`/`git tag` fast-exit anchors
+  only on the *start* of the command string, so a chained command like
+  `git commit -m "..." && rm -rf /some/path` still fast-exits and skips all
+  checks — confirmed via direct test (`exit=0`, uncaught). Needs tightening
+  (e.g. only fast-exit when the command contains no `&&`/`;`/`|`) before
+  this hook can be trusted against compound commands, not just bare ones.
+
+Parked for post-fun-gate (from v1 playtest findings, still open):
+- Treasure affordance — yellow tile not readable as a pick-up.
+- Treasure variety + score visibility + carry feedback (GDD backlog).
+- Explorer inspection card — show what a player is carrying.
+- Player labels oversized / overlapping tiles.
+
+Deferred (was "Next Sprint" before fun-gate v2 took priority — still valid,
+not done, just no longer next):
 - [ ] Add directional indicator to arrow/cannon swatches (small arrow/chevron in `_draw()`)
 - [ ] Add combat check at arrow/cannon secondary landing position
 - [ ] Add board-seeding of tile definitions to Postgres (needed for map editor)
