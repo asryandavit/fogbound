@@ -64,15 +64,22 @@ func _on_turn_changed() -> void:
     _pan_target = _compute_own_units_centroid()
     _tween_pan()
 
+## Per-player view orientation (Decision 098). Recomputed fresh — never
+## cached — same Decision 061/062 hazard as board_rows.
+func _current_flipped() -> bool:
+    var local_base_y: int = GameState.players.get(NetworkManager.local_player_id, {}).get("baseY", 0)
+    return BoardCoord.is_local_view_flipped(local_base_y)
+
 func _compute_own_units_centroid() -> Vector2:
     var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
+    var flipped := _current_flipped()
     var total := Vector2.ZERO
     var count := 0
     for id in GameState.explorers.keys():
         var e: Dictionary = GameState.explorers[id]
         if e.get("playerId", "") == NetworkManager.local_player_id:
             var coord := Vector2i(int(e.get("x", 0)), int(e.get("y", 0)))
-            total += BoardCoord.to_world_position(coord, board_rows)
+            total += BoardCoord.to_world_position(coord, board_rows, flipped)
             count += 1
     return total / count if count > 0 else Vector2.ZERO
 

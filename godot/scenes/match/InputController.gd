@@ -21,7 +21,12 @@ func _input(event: InputEvent) -> void:
 func _handle_screen_tap(screen_pos: Vector2) -> void:
     var world_pos: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
     var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
-    on_tap(BoardCoord.from_world_position(world_pos, board_rows))
+    # Per-player view orientation (Decision 098): a tap must invert through
+    # the SAME flip the renderers used, or it lands on the wrong server tile
+    # for the flipped player. Recomputed fresh — never cached.
+    var local_base_y: int = GameState.players.get(NetworkManager.local_player_id, {}).get("baseY", 0)
+    var flipped := BoardCoord.is_local_view_flipped(local_base_y)
+    on_tap(BoardCoord.from_world_position(world_pos, board_rows, flipped))
 
 ## Core input logic — directly tested, independent of real touch/screen conversion.
 func on_tap(coord: Vector2i) -> void:

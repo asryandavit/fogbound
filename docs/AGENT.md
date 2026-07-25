@@ -841,19 +841,85 @@ AGENT.md entry.
 
 ---
 
+### Per-Player View Orientation: Own Base Always at Bottom ✅ DONE (code) — 2026-07-25
+
+Context: an attempt to start the fun-gate v2 playtest (below) surfaced a new
+blocker before the playtest itself could proceed: the player whose base
+spawns on the server's far edge (Colyseus slot 1, `baseY = rows-1`) saw
+their OWN explorers at the top of the screen and the opponent's at the
+bottom — the existing universal row-flip only ever reconciled server-y-up
+with Godot's y-down convention, identically for both clients, and happened
+to put slot 0's base at the bottom "for free" while doing nothing for slot
+1. This is a real feature landing (queued, deferred behind blocking bugs),
+not a regression.
+
+- `godot/scripts/board_coord.gd` — `to_tilemap_coord`/`to_world_position`/
+  `from_world_position` each gained a `flipped: bool = false` param (a 180°
+  rotation about the board center, on top of the existing row-flip);
+  `is_local_view_flipped(local_base_y)` derives it from
+  `GameState.players[local_player_id].baseY`, never hardcoded to a slot.
+  Default keeps every existing caller byte-identical.
+- `board_layer.gd` / `fog_layer.gd` — threaded through, with a self-healing
+  full-repaint guard: if the local player's `baseY` becomes known only
+  *after* the first full-board paint (a real risk per Decision 061 — arrival
+  order across collections isn't guaranteed), every tile would otherwise be
+  stuck in the wrong orientation forever, since single-tile updates don't
+  normally trigger a repaint. Found during design, not live testing.
+- `explorers_container.gd` / `ExplorerController.gd`, `CameraController.gd`
+  (auto-pan target), `InputController.gd` (tap→server-coord inverse) —
+  threaded through.
+- Design choice: the flip is implemented entirely as a *position* transform
+  — no node's `rotation` property ever changes — so labels (explorer id
+  text, tile labels) render upright for free, verified with a regression
+  test (`rotation == 0` even when flipped).
+
+Tests: `godot/tests/gc11/test_view_orientation.gd` (new, 17 tests) —
+coordinate round-trips both orientations, tap-resolves-to-correct-server-
+coord both orientations (the critical correctness point), BoardLayer/
+FogLayer painting + the late-player-data repaint regression, explorer
+positioning + the label-rotation guard. Full regression: all runnable GUT
+suites (gc2–gc8, gc10, gc11) — 69/69 pass, zero regressions. (gc9 fails to
+load with a pre-existing parse error, confirmed unrelated via `git stash`.)
+
+**Not yet live-verified — this is the actual gate, see Fun-Gate v2 below.**
+Rebuilding/redeploying the APK to the two already-running emulators is
+itself the multi-step pipeline from the Android APK Build sprint (above) —
+out of the chunks scoped for this code change.
+
+**Unrelated finding surfaced while running the standard Jest check:**
+`npx jest` currently crashes the whole process on Node v22.21.1
+(`ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG` inside `@electric-sql/
+pglite`'s dynamic import) — confirmed via `git status`/`git diff` that zero
+backend files were touched by this work, so this is pre-existing backend
+drift, not caused here. Different failure than Decision 095's `pushSchema`
+crash, on what looks like the same auth spec files. Needs its own
+follow-up task — not fixed here (out of scope for a Godot-only goal).
+
+Documentation: updated docs/DECISIONS.md (added entry 098); this AGENT.md
+entry.
+
+---
+
 ### Current Milestone: Fun-Gate Playtest v2
 
-Baseline (Jest 105/105, GUT 44/44) and the safety net (danger hook, tooling
-verdicts) are now in place. The four interaction-friction fixes from the
-previous sprint (tap hit-test, phantom undo, drag-pan, bot-takeover grace
-revert) were verified individually but never played through together as one
-continuous session — that confirmation is the actual gate now, not more
-automated coverage.
+Baseline (Jest 105/105 — see caveat above, GUT 69/69) and the safety net
+(danger hook, tooling verdicts) are in place. The four interaction-friction
+fixes from the previous sprint (tap hit-test, phantom undo, drag-pan,
+bot-takeover grace revert) were verified individually but never played
+through together as one continuous session. The per-player view
+orientation fix above is now ALSO a precondition — a disoriented board
+"pollutes every other judgment about the match" (this is in fact how the
+orientation bug was found: mid-attempt at this exact playtest).
 
 Next 3 tasks:
-1. **FUN-GATE V2**: clean 2-emulator match; self-verify tap / undo /
-   drag-pan live — the four friction fixes have never been independently
-   confirmed together; this is a hands-on check, not an automated one.
+1. **FUN-GATE V2**: rebuild + redeploy the APK (per the Android APK Build
+   sprint pipeline, above) to the two running emulators; clean 2-emulator
+   match; self-verify tap / undo / drag-pan / own-base-at-bottom live, on
+   BOTH devices — none of these five things have been confirmed together
+   in one continuous session; this is a hands-on check, not an automated
+   one. For the orientation fix specifically: confirm a tap lands correctly
+   on the device that was previously top-oriented (proves the inverse
+   tap-mapping, not just the rendering) and that labels stay upright.
 2. Answer the fun-gate question directly: Play Again, or put the phone
    down — and why?
 3. Depending on that answer: a legibility pass (treasure/carry affordance)
@@ -871,6 +937,9 @@ Tech debt (not blocking, tracked for later):
   checks — confirmed via direct test (`exit=0`, uncaught). Needs tightening
   (e.g. only fast-exit when the command contains no `&&`/`;`/`|`) before
   this hook can be trusted against compound commands, not just bare ones.
+- Backend Jest currently crashes the whole process on Node v22.21.1 (see
+  entry above) — pre-existing, needs its own follow-up task before the
+  105/105 baseline claim (Decision 095) can be trusted again.
 
 Parked for post-fun-gate (from v1 playtest findings, still open):
 - Treasure affordance — yellow tile not readable as a pick-up.

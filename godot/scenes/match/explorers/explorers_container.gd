@@ -12,6 +12,13 @@ func _ready() -> void:
     GameState.explorer_moved.connect(_on_explorer_moved)
     GameState.explorer_removed.connect(_on_explorer_removed)
 
+## Per-player view orientation (Decision 098). Recomputed fresh on every call
+## — never cached — same Decision 061/062 hazard as board_rows: player data
+## can populate in any order relative to tiles/explorers.
+func _current_flipped() -> bool:
+    var local_base_y: int = GameState.players.get(NetworkManager.local_player_id, {}).get("baseY", 0)
+    return BoardCoord.is_local_view_flipped(local_base_y)
+
 func _on_state_initialized() -> void:
     # Defensive re-sync: empirically, GameState.state_initialized can fire
     # before tiles/explorers are populated for the SAME patch (Colyseus
@@ -21,9 +28,10 @@ func _on_state_initialized() -> void:
     # is what actually keeps positions correct; this just re-syncs anything
     # already spawned in case a future ordering puts real data here first.
     var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
+    var flipped := _current_flipped()
     for id in _nodes.keys():
         if GameState.explorers.has(id):
-            _nodes[id].update_from_state(GameState.explorers[id], board_rows)
+            _nodes[id].update_from_state(GameState.explorers[id], board_rows, flipped)
 
 func _on_explorer_added(id: String) -> void:
     if _nodes.has(id) or not GameState.explorers.has(id):
@@ -32,16 +40,18 @@ func _on_explorer_added(id: String) -> void:
     # "tiles are complete" signal; it does not reliably order against
     # collection population (see _on_state_initialized comment).
     var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
+    var flipped := _current_flipped()
     var node: ExplorerController = EXPLORER_SCENE.instantiate()
     add_child(node)
-    node.setup(id, GameState.explorers[id], board_rows)
+    node.setup(id, GameState.explorers[id], board_rows, flipped)
     _nodes[id] = node
 
 func _on_explorer_moved(id: String) -> void:
     if not _nodes.has(id) or not GameState.explorers.has(id):
         return
     var board_rows := BoardCoord.compute_board_rows(GameState.tiles)
-    _nodes[id].update_from_state(GameState.explorers[id], board_rows)
+    var flipped := _current_flipped()
+    _nodes[id].update_from_state(GameState.explorers[id], board_rows, flipped)
 
 func _on_explorer_removed(id: String) -> void:
     if not _nodes.has(id):

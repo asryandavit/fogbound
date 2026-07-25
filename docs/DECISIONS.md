@@ -1903,3 +1903,88 @@ DEFER (unchanged): GitHub issues MCP, mobile-mcp/Maestro, skill-creator.
 
 PRINCIPLE: every tool must earn a permanent context seat. A lean toolset is
 a correctness feature for a solo dev, not just tidiness.
+
+## 098 — Per-player view-layer board orientation: own base always at bottom (2026-07-25)
+
+Decision: On top of the existing universal server→tilemap row-flip (which
+only reconciles server y=0-is-bottom with Godot TileMapLayer's y-increases-
+downward convention, identically for every client), each client now also
+applies an optional 180° rotation about the board center — but ONLY for the
+local player whose own base is NOT on server y=0. `board_coord.gd`'s three
+transform functions (`to_tilemap_coord`, `to_world_position`,
+`from_world_position`) each gained a `flipped: bool = false` parameter;
+`is_local_view_flipped(local_base_y)` derives it from
+`GameState.players[local_player_id].baseY` at every call site — never
+cached, never hardcoded to a slot number. Default `flipped=false` keeps
+every pre-existing caller byte-identical (regression-tested).
+
+Threaded through: `BoardLayer`, `FogLayer` (tile/fog painting),
+`ExplorersContainer`/`ExplorerController` (explorer positioning),
+`CameraController._compute_own_units_centroid()` (auto-pan target),
+`InputController._handle_screen_tap()` (tap→server-coord inverse).
+
+**Why board-space rotation, not a node/camera rotation:** rotating a parent
+Node2D (or the Camera2D itself) would require counter-rotating every child
+label to keep text upright, and complicates drag-pan input (screen-space
+deltas would need un-rotating too). Instead, nothing's `rotation` property
+ever changes — only computed *positions*/*cells* differ. This means labels
+(explorer id text, ARROW/CANNON/TRAP tile labels) are upright for free, by
+construction, not by an explicit counter-rotation — verified with a
+regression test asserting `ExplorerController.rotation == 0` and
+`label.rotation == 0` even when `flipped=true`.
+
+**Inverse-transform derivation (tap correctness):** the forward transform is
+row-flip THEN 180°-rotate. Since both operations are self-inverse but do
+NOT commute-and-cancel when composed, the inverse must apply them in
+REVERSE order: rotate-undo THEN row-flip-undo. Implemented in
+`from_world_position`. Verified with round-trip tests (forward then inverse
+returns the original server coord, at all 4 corners + center, in both
+orientations) and specific known-value tests (a tap at the local player's
+own on-screen base position resolves to *their* server coord, not the other
+slot's).
+
+**New instance of the Decision 061/062 hazard, found during design (not
+during live testing this time):** if the 180° flip were baked into
+`BoardLayer`/`FogLayer`'s one-time full-board repaint, and the local
+player's `baseY` becomes known only AFTER that repaint (a real risk —
+Decision 061 established Colyseus collections arrive in unpredictable
+relative order), every tile already painted would be stuck in the wrong
+orientation forever, since subsequent single-tile updates don't trigger a
+full repaint. Fixed by tracking `_flipped` as instance state in both layers
+and forcing one more full repaint if the computed value changes from what
+was last painted with — not just when `board_rows` changes. Covered by a
+dedicated regression test (`test_board_layer_repaints_all_tiles_when_
+player_data_arrives_late`) that seeds an unflipped paint first, then
+supplies player data afterward, and asserts every tile ends up repainted.
+
+Tests: `godot/tests/gc11/test_view_orientation.gd` (new, 17 tests) — pure
+coordinate-transform round-trips (both orientations, all 4 corners +
+center), tap-resolves-to-correct-server-coord (both orientations, including
+the flipped-device case the goal specifically called out), BoardLayer/
+FogLayer scene-level painting + the late-player-data repaint regression,
+ExplorerController flipped positioning + the rotation==0 label guard.
+Full regression: all runnable GUT suites (gc2–gc8, gc10, gc11) — 69/69
+pass, zero regressions. gc9 fails to load with a pre-existing parse-time
+"does not extend GutTest" error, confirmed via `git stash` to be present
+and identical with this change reverted — unrelated to this work, not
+fixed here (out of scope).
+
+**New, unrelated backend finding surfaced while running the standard Jest
+regression check:** `npx jest` currently crashes the whole process
+(`TypeError: A dynamic import callback was invoked without
+--experimental-vm-modules`, `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING_FLAG`,
+inside `@electric-sql/pglite`'s dynamic import path) on Node v22.21.1 — a
+different failure than the `pushSchema` crash fixed in Decision 095, on
+what appears to be the same auth spec files. Confirmed via `git status`/
+`git diff` that zero backend files were touched by this goal — pre-existing
+and out of scope here. Needs its own follow-up task.
+
+**Not verified in this session — needs a live 2-emulator playtest** (both
+emulators were already running from the prior playtest sprint, backend
+container up, but rebuilding/redeploying the APK is itself the multi-step
+pipeline documented in the Android APK Build sprint above — out of the
+chunks scoped for this goal). See docs/AGENT.md for exactly what to check.
+
+Security: neutral — pure client-side rendering/input-mapping change; no
+server coordinates, validation, or state are transformed (client remains a
+pure renderer per the locked architecture invariant).
