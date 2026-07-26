@@ -1989,11 +1989,12 @@ Security: neutral — pure client-side rendering/input-mapping change; no
 server coordinates, validation, or state are transformed (client remains a
 pure renderer per the locked architecture invariant).
 
-## 099 — DIAGNOSIS ONLY: stale-match resume root cause found; fix pending approval (2026-07-26)
+## 099 — Stale-match resume: root cause diagnosed; fix ADOPTED in Decision 100 (2026-07-26)
 
-Status: diagnosed, NOT fixed. No behavior change in this entry — only
-temporary structural logging was added (`GameRoom.logDiag`, clearly marked
-"TEMP DIAGNOSTIC", intended to be removed once the real fix lands).
+Status: diagnosed AND fixed — see Decision 100 for the approved specification,
+implementation, and live verification. This entry's diagnosis stands as
+originally written below; only this status line changed once the fix
+landed (DECISIONS.md is append-only — the diagnosis itself is untouched).
 
 Symptom: pressing Play ("vs Player") on two devices sometimes resumes an
 old, partially-explored, multi-player-contaminated room instead of
@@ -2073,3 +2074,154 @@ Fun-Gate Playtest v2 — this is very likely what actually caused the
 "Waiting… on both" observation that motivated that milestone).
 Security: neutral — matchmaking/room-lifecycle correctness fix, no new
 trust boundary; server remains sole authority throughout.
+
+## 100 — Stale-match resume fix ADOPTED: lock/dispose/cap room lifecycle (2026-07-26)
+
+Status: ADOPTED and live-verified. Implements the approved 7-point
+specification against Decision 099's diagnosis. Recorded as its own entry
+so future sessions build against this spec directly, not just the prior
+diagnosis.
+
+**The 7 points, and where each lives in `GameRoom.ts`:**
+1. *Play always starts a new match* — not a separate code change; it falls
+   out of points 2–4 together. The Godot client already never stores a
+   room id or reconnection token (`network_manager.gd` only ever calls
+   `create()`/`join_or_create()` — confirmed, no `client.reconnect()` call
+   exists anywhere in the client). Once a room is locked at match-start and
+   disposed at match-end/empty, `join_or_create` structurally cannot land
+   in it again — Colyseus's own matchmaking excludes locked/disposed rooms
+   from selection.
+2. *Lock on match start* — `onJoin`: `this.lock()` now fires unconditionally
+   inside the existing `if (this.state.players.size >= 2)` branch, covering
+   vs-Player and solo-vs-bot alike (previously only solo-bot locked).
+3. *Dispose on match end* — `checkForWinner()` now calls `void
+   this.disconnect()` right after broadcasting `match_ended`. Since
+   `checkWinCondition` (Decision 073) already checks the turn-limit backstop
+   before all_treasure/score_target, this single call site covers every
+   termination path — win, turn-limit, or (there being no distinct "draw"
+   outcome in this codebase) a tie resolved by `scoreLeader`.
+4. *Dispose when emptied of humans* — `checkAllBots()` (pre-existing) still
+   calls `this.disconnect()` once every player is bot-flagged; confirmed
+   live that locking does not interfere with it (a match ended via a real
+   move and via all-bots both correctly disposed in the same test run, see
+   below).
+5. *Transport-level reconnection untouched* — no client changes; the SDK's
+   own internal reconnect (auto-fires on `dropped`, using a private
+   reconnection handle, never goes through `join_or_create`/matchmaking) is
+   architecturally independent of `lock()`, which only gates matchmaking
+   selection. Verified live (see (e) below).
+6. *No slot accumulation* — `onJoin` now refuses outright
+   (`client.leave(4000, 'Room is full')`) if `this.state.players.size >=
+   this.maxClients`, before doing anything else. `addPlayer` itself is
+   unchanged in mechanism (departed players are intentionally never
+   deleted — bot-takeover, Decision 011/012/029, needs their entry to keep
+   playing) but is now only ever called while structurally under the cap.
+7. *Guarantee* — proven live below: consecutive Play presses land in
+   different room ids with fresh boards and exactly 2 slots, across four
+   different disconnect scenarios.
+
+**Finding during implementation, not anticipated by the spec:** the Godot
+client's native Colyseus SDK does not send WebSocket close code 1000 for
+an intentional `leave()` — confirmed live, a deliberate Exit-button tap
+produces the exact same `code=1006` as `am force-stop`. An initial
+implementation special-cased `code === 1000` to skip the 60s
+`allowReconnection` wait on an intentional leave; this was reverted after
+live testing showed it was dead code with this client (the branch never
+matched). Every disconnect — intentional or accidental — now goes through
+the same 60s reconnection window uniformly. This does not weaken point 4:
+the room is still guaranteed to dispose once emptied of humans, just up to
+60s later than the (unreachable) optimization would have allowed. No
+client-side change was made or is needed for this.
+
+**Live verification — all 5 required sequences, two real emulators
+(emulator-5554, emulator-5556), fresh backend rebuild each round:**
+
+(a) Fresh Play, both join: room `tnJt8fuHB` created → both join → locked →
+    `Match started`. Client logs: `tiles:169 explorers:4 players:2` on
+    both. Screenshot: exactly 4 explorers, clustered at each player's own
+    spawn row (bottom, per Decision 098), all-black fog, no accumulation.
+
+(b) Win → Play Again → new room: temporarily set `DEFAULT_MAX_TURNS=1` for
+    this round only (reverted before commit — real gameplay to a natural
+    win is impractical to script blindly in a live session). Room
+    `2DjrsHbKw`: one real move → `Match ended…winner=player_25744` →
+    `{"phase":"disposing","reason":"match_ended",...}` →
+    `{"phase":"disposing","reason":"all_bots_abandoned"}` (the forced
+    disconnect converts both clients, which cleanly cascades into the
+    all-bots path too — both mechanisms compose without conflict) →
+    `{"phase":"disposed"}`. "You Win!" screen confirmed on-device. Play
+    Again → room `-qSSLmAqf`, a genuinely different id, `players:2
+    explorers:4` on both clients, fresh board screenshot confirmed.
+
+(c) Exit mid-match → Play again: Exit sends `code=1006` (see finding
+    above) — the departing client immediately starts its 60s
+    reconnection window. Pressed Play again on that SAME device
+    *immediately*, well inside that window: created a brand-new room
+    `aWRj20Hv-`, distinct from the still-alive, still-locked `e1UXd-s8G`.
+    This is the critical proof for this scenario — a fresh Play does not
+    wait for or care about the old room's reconnection state at all.
+
+(d) force-stop mid-match (`adb shell am force-stop`, the exact Decision 099
+    repro) → relaunch → Play: room `aWRj20Hv-` (from a fully clean 2-player
+    match) → force-stopped one client (`code=1006`, confirmed) → relaunched
+    → pressed Play *immediately*, inside the 60s window → new room
+    `lYjlmCaV8` created, `player_32027` joins as the FIRST player of a
+    fresh room, NOT a 3rd player of the old one. The still-connected other
+    client's own state stayed at `players:2 explorers:4` throughout —
+    directly disconfirming the original bug (which showed `players:3
+    explorers:6`). Screenshots: relaunched device shows "Waiting…" alone
+    in an empty fresh room; the other device's board never grew a 3rd
+    player. This is the exact Decision 099 repro, and it no longer
+    reproduces.
+
+(e) Transport blip, no Play press: `adb shell svc data disable` briefly on
+    a live match, then re-enable. Client log: `dropped code=1006 —
+    entering RECONNECTING` → six seconds later, `reconnected
+    room=jwEG-jTJM` (the SAME room, via the SDK's own internal reconnect,
+    with zero client action beyond the connectivity toggle) →
+    `state decoded — tiles:169 explorers:4 players:2` (state intact,
+    match continues normally). Confirms point 5: locking does not
+    interfere with legitimate transport-level reconnection. (A second,
+    longer attempt in the same session exceeded the 60s server-side
+    window due to time spent debugging the emulator's own connectivity
+    toggle — that is an artifact of manual `adb`/emulator control, not a
+    flaw in the fix; the clean first cycle is the valid evidence for this
+    point.)
+
+**Jest tests: not added — a genuine, pre-existing tooling gap, not a
+shortcut.** `@colyseus/testing` (the framework's own official Room-testing
+package) was installed and investigated in depth: importing `colyseus`
+(or `@colyseus/core` directly — the same transitive path) at all under
+Jest fails, because `@colyseus/core`'s own matchmaking router uses
+`@colyseus/better-call`, which requires `rou3` — a real, pure-ESM package
+with no CommonJS build. Node itself handles `require()` of this
+transitively via its own CJS/ESM interop (production is unaffected — the
+Docker container runs fine); Jest's runtime does not replicate that
+interop even under `--experimental-vm-modules` (`.mjs` files are
+unconditionally routed through Jest's native ESM handling, which cannot
+be synchronously required from the CJS chain `better-call` needs — tried
+`transformIgnorePatterns` + `ts-jest`, then + `babel-jest`, both hit the
+same "Must use import to load ES Module" wall). This is a structural gap
+in this project's Jest setup, not specific to this fix, and is now known
+tech debt (see docs/AGENT.md). A no-op stub for `rou3` was tried first and
+rejected once traced back far enough to confirm it would silently corrupt
+real matchmaking route registration, not just fail loudly — the risk of
+that footgun outweighed having a green checkmark. Verification instead
+rests on the five live scenarios above (a real 2-emulator, real-backend
+proof is arguably stronger evidence for a matchmaking/room-lifecycle bug
+than a mocked unit test would be) plus TypeScript compiling clean and the
+full pre-existing 105/105 Jest suite staying green throughout (no
+regressions in what Jest *can* cover today).
+
+Files changed: `backend/src/colyseus/rooms/GameRoom.ts` only. No client
+change, no migration, no new production dependency (the `@colyseus/testing`
+investigation was fully reverted — `package.json`/`package-lock.json`
+restored to their committed state via `npm ci`).
+
+Documentation: this entry; Decision 099's status line; docs/AGENT.md
+(Fun-Gate Playtest v2 blocker resolved; new tech-debt entry for the Jest/
+colyseus import gap).
+Security: neutral — matchmaking/room-lifecycle correctness fix. No new
+trust boundary; server remains sole authority throughout; `client.leave(4000,
+...)` on an over-capacity join is a defensive refusal, not a new attack
+surface.

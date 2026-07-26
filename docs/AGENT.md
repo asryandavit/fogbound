@@ -900,50 +900,86 @@ entry.
 
 ---
 
+### Stale-Match Resume Fix ✅ DONE (2026-07-26)
+
+Context: the blocker diagnosed in Decision 099 (pressing Play resuming a
+stale, contaminated room instead of matchmaking fresh) is now fixed and
+live-verified per the approved 7-point specification — see Decision 100
+for full detail, the exact live-test sequences, and the root-cause finding
+that the Godot client's native SDK never actually sends WebSocket close
+code 1000 (an initial `code===1000` fast-path was written, then reverted
+as dead code once this was confirmed live).
+
+`backend/src/colyseus/rooms/GameRoom.ts` only — no client change:
+- `onJoin` now locks the room the moment both slots fill, for vs-Player
+  and solo-vs-bot alike (previously solo-bot only), and refuses outright
+  if already at `maxClients` (defense in depth against slot accumulation).
+- `checkForWinner()` now disposes the room on every match end (win,
+  turn-limit, or tie) — previously it never did, so a finished match's
+  room lingered indefinitely.
+- `checkAllBots()` (pre-existing) still disposes once every player is
+  bot-flagged; confirmed live that locking doesn't interfere with it.
+
+Live-verified on two real emulators, all 5 required sequences: fresh Play
+(a), win → Play Again (b), Exit mid-match → Play (c), force-stop mid-match
+→ relaunch → Play — the exact Decision 099 repro (d), and a genuine
+transport blip resuming the same match via the SDK's own reconnect without
+any Play press (e). (d) in particular: the client that was previously
+landing as a 3rd player in the stale room now creates a genuinely new one
+every time, and the still-connected opponent's player count stayed at 2,
+never 3.
+
+**Correction to the "Backend Jest crashes" tech debt item below (was
+wrong):** re-tested this session via the project's own `npm run test`
+script (which carries the `--experimental-vm-modules` flag already needed
+for `@electric-sql/pglite`) and got a clean 105/105, twice. The earlier
+"crash" was from running `npx jest` directly, bypassing that flag — a
+misdiagnosis in the prior session, not a real regression. The 105/105
+baseline (Decision 095) is trustworthy; no follow-up task needed for this.
+
+**New tech debt found while trying to add Jest coverage for this fix**
+(see Decision 100 for full detail): `@colyseus/core`'s matchmaking router
+depends on `@colyseus/better-call` → `rou3`, a pure-ESM package with no
+CommonJS build. Node itself interops with this fine (production
+unaffected), but Jest's runtime cannot require() it even under
+`--experimental-vm-modules` — confirmed after trying
+`transformIgnorePatterns` + `ts-jest`, then + `babel-jest`, both hitting
+"Must use import to load ES Module." This means **no Colyseus `Room`
+subclass can currently be integration-tested via this project's Jest
+setup** — a real, structural gap, not specific to this fix. Verification
+for this fix rests entirely on the five live 2-emulator sequences instead
+(see Decision 100) plus the pre-existing 105/105 pure-model suite staying
+green. Needs its own future task if Room-level Jest coverage is ever
+wanted — options noted in Decision 100 (a working ESM transform, or
+extracting testable pure logic out of `GameRoom` itself).
+
+---
+
 ### Current Milestone: Fun-Gate Playtest v2
 
-Baseline (Jest 105/105 — see caveat above, GUT 69/69) and the safety net
-(danger hook, tooling verdicts) are in place. The four interaction-friction
-fixes from the previous sprint (tap hit-test, phantom undo, drag-pan,
-bot-takeover grace revert) were verified individually but never played
-through together as one continuous session. The per-player view
-orientation fix above is now ALSO a precondition — a disoriented board
-"pollutes every other judgment about the match" (this is in fact how the
-orientation bug was found: mid-attempt at this exact playtest).
-
-**BLOCKER found and diagnosed 2026-07-26, NOT yet fixed (see Decision 099):**
-pressing Play ("vs Player") can resume a stale, already-in-progress room
-instead of matchmaking a fresh one — both devices show "Waiting…"
-simultaneously on a partly-explored board. This is almost certainly what
-was actually happening during earlier fun-gate attempts. Root cause
-confirmed at three levels (Colyseus framework source, organic logs from
-this session, and a staged live repro): `GameRoom` never calls `this.lock()`
-for a "vs Player" match, so Colyseus's own automatic room-lock is undone
-the instant either client disconnects (even into the `allowReconnection`
-grace window) — a new `join_or_create` then matches into the still-open
-room as a 3rd/4th player rather than a fresh 2-player match. Recommended
-fix (one line, `this.lock()` after `startMatch()`) is written up in
-Decision 099 but requires explicit approval before being built — **this
-must land and be verified before Fun-Gate V2 (task 1 below) can produce a
-trustworthy result**, since a resumed stale room would invalidate the
-"clean 2-emulator match" premise entirely.
+Baseline (Jest 105/105, GUT 69/69) and the safety net (danger hook,
+tooling verdicts) are in place. The four interaction-friction fixes from
+the previous sprint (tap hit-test, phantom undo, drag-pan, bot-takeover
+grace revert) were verified individually but never played through together
+as one continuous session. The per-player view orientation fix (above)
+and the stale-match-resume fix (above) are now BOTH preconditions — either
+one being broken would invalidate the "clean 2-emulator match" premise;
+both are now fixed and live-verified.
 
 Next 3 tasks:
-1. **Fix + verify Decision 099** (stale-match resume) — build the approved
-   fix, confirm via a repeat of this session's repro (kill one client
-   mid-match, relaunch, Play again) that it now lands in a genuinely fresh
-   room, not the old one.
-2. **FUN-GATE V2**: rebuild + redeploy the APK (per the Android APK Build
+1. **FUN-GATE V2**: rebuild + redeploy the APK (per the Android APK Build
    sprint pipeline, above) to the two running emulators; clean 2-emulator
-   match; self-verify tap / undo / drag-pan / own-base-at-bottom live, on
-   BOTH devices — none of these five things have been confirmed together
-   in one continuous session; this is a hands-on check, not an automated
-   one. For the orientation fix specifically: confirm a tap lands correctly
-   on the device that was previously top-oriented (proves the inverse
-   tap-mapping, not just the rendering) and that labels stay upright.
-3. Answer the fun-gate question directly: Play Again, or put the phone
-   down — and why? Depending on that answer: a legibility pass
-   (treasure/carry affordance) or a loop redesign.
+   match; self-verify tap / undo / drag-pan / own-base-at-bottom / fresh-
+   match-on-Play live, on BOTH devices — none of these have been confirmed
+   together in one continuous session; this is a hands-on check, not an
+   automated one. For the orientation fix specifically: confirm a tap
+   lands correctly on the device that was previously top-oriented (proves
+   the inverse tap-mapping, not just the rendering) and that labels stay
+   upright.
+2. Answer the fun-gate question directly: Play Again, or put the phone
+   down — and why?
+3. Depending on that answer: a legibility pass (treasure/carry affordance)
+   or a loop redesign.
 
 Tech debt (not blocking, tracked for later):
 - Fog enforcement is visual-only (Decision 049) — needs StateView hardening
@@ -957,9 +993,8 @@ Tech debt (not blocking, tracked for later):
   checks — confirmed via direct test (`exit=0`, uncaught). Needs tightening
   (e.g. only fast-exit when the command contains no `&&`/`;`/`|`) before
   this hook can be trusted against compound commands, not just bare ones.
-- Backend Jest currently crashes the whole process on Node v22.21.1 (see
-  entry above) — pre-existing, needs its own follow-up task before the
-  105/105 baseline claim (Decision 095) can be trusted again.
+- Jest cannot import `colyseus`/`@colyseus/core` at all (see entry above)
+  — no Room-lifecycle integration test coverage is possible today.
 
 Parked for post-fun-gate (from v1 playtest findings, still open):
 - Treasure affordance — yellow tile not readable as a pick-up.

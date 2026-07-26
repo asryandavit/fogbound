@@ -48,32 +48,23 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     this.onMessage('move_explorer', (client, message) => this.handleMoveExplorer(client, message));
     this.onMessage('end_turn', (client) => this.handleEndTurn(client));
 
-    // TEMP DIAGNOSTIC (stale-match-resume investigation, remove after fix lands)
-    this.logDiag('onCreate', { roomId: this.roomId, matchId: this.state.matchId, locked: this.locked });
+    this.logRoom('created');
     console.log(`GameRoom created: ${this.state.matchId}`);
   }
 
   async onJoin(client: Client, options: any) {
+    // Defense in depth (Decision 099): once locked (below), Colyseus's
+    // own matchmaking never routes a new join_or_create here — but a stray
+    // direct join must never silently create a 3rd/4th slot either. This
+    // is what actually bounds addPlayer's slot count, not just an
+    // assumption that callers behave.
+    if (this.state.players.size >= this.maxClients) {
+      client.leave(4000, 'Room is full');
+      return;
+    }
+
     const playerId: string = options.playerId || client.sessionId;
     const username: string = options.username || 'Player';
-
-    // TEMP DIAGNOSTIC: state of the room BEFORE this join is applied — the
-    // key evidence for whether this is a fresh room or a resumed one.
-    this.logDiag('onJoin:before', {
-      roomId: this.roomId,
-      sessionId: client.sessionId,
-      incomingPlayerId: playerId,
-      vsBot: !!options.vsBot,
-      locked: this.locked,
-      clientsConnected: this.clients.length,
-      existingPlayerCount: this.state.players.size,
-      existingPlayerIds: [...this.state.players.keys()],
-      revealedTileCount: [...this.state.tiles.values()].filter(t => t.isRevealed).length,
-      totalTileCount: this.state.tiles.size,
-      explorerPositions: [...this.state.explorers.values()].map(e => ({ id: e.explorerId, x: e.x, y: e.y })),
-      currentPlayerId: this.state.turnState.currentPlayerId,
-      matchStatus: this.state.status,
-    });
 
     this.sessionToPlayerId.set(client.sessionId, playerId);
     this.addPlayer(playerId, username, false);
@@ -84,73 +75,73 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     // for a second human — otherwise there is no way to play alone.
     if (options.vsBot && this.state.players.size === 1) {
       this.addPlayer(`bot_${playerId}`, 'Bot', true);
-      // Lock the room so join_or_create ("vs Player") from another human is
-      // never matched into this solo-vs-bot match (the bot isn't a client, so
-      // without this the room would look half-empty to matchmaking).
-      this.lock();
       console.log(`Bot opponent added for solo match: ${this.state.matchId}`);
     }
 
-    if (this.state.players.size >= 2) this.startMatch();
-
-    // TEMP DIAGNOSTIC: room's own turnState + own playerId mapping right after
-    // join — proves/disproves the "Waiting… on both" deadlock (goal Q4).
-    this.logDiag('onJoin:after', {
-      roomId: this.roomId,
-      sessionId: client.sessionId,
-      joinedAsPlayerId: playerId,
-      currentPlayerId: this.state.turnState.currentPlayerId,
-      turnMatchesJoiner: this.state.turnState.currentPlayerId === playerId,
-      locked: this.locked,
-    });
+    if (this.state.players.size >= 2) {
+      // Lock the moment both slots are filled — vs-Player and solo-vs-bot
+      // alike (previously only the solo-bot path locked here). An EXPLICIT
+      // lock() persists across any later disconnect; Colyseus's own
+      // automatic lock (from reaching maxClients) does not — it is undone
+      // the instant a client disconnects unless locked explicitly (Decision
+      // 099). This is what closes the stale-match-resume gap at its source:
+      // a fresh "Play" can never join_or_create into this room again, no
+      // matter what happens to either client afterward.
+      this.lock();
+      this.logRoom('locked');
+      this.startMatch();
+    }
   }
 
   async onLeave(client: Client, code?: number) {
     const player = this.findPlayerBySession(client.sessionId);
     if (!player) return;
     player.isConnected = false;
-
-    // TEMP DIAGNOSTIC: the close code and lock state at the moment of leave —
-    // the key evidence for whether a non-clean close enters the reconnection
-    // window WITHOUT locking the room against new join_or_create matchmaking.
-    this.logDiag('onLeave', {
-      roomId: this.roomId,
-      sessionId: client.sessionId,
-      playerId: player.playerId,
-      code,
-      locked: this.locked,
-      clientsConnected: this.clients.length,
-    });
     console.log(`Player disconnected: ${player.playerId}`);
 
-    // code 1000 = normal/intentional close; anything else = unexpected drop
-    if (code !== 1000) {
-      try {
-        await this.allowReconnection(client, 60);
-        player.isConnected = true;
-        console.log(`Player reconnected: ${player.playerId}`);
-      } catch {
-        player.isBot = true;
-        console.log(`Player replaced by bot: ${player.playerId}`);
-        this.broadcast('player_afk_bot_controlling', { playerId: player.playerId });
-        this.checkAllBots();
-      }
+    // Every disconnect — an intentional Exit/Play Again as much as an
+    // accidental drop — goes through the same 60s reconnection window here.
+    // The Godot client's native SDK does not distinguish these: `leave()`
+    // was confirmed live to close with code 1006 (abnormal) even for a
+    // deliberate Exit tap, so a code-based fast path is unreachable dead
+    // code with this client, not a real optimization. This does not weaken
+    // point 4 (room destroyed once emptied of humans) — it just means that
+    // guarantee lands up to 60s later than an intentional leave alone could
+    // in principle allow, which matches the existing accepted design for
+    // accidental disconnects (Decision 045) rather than regressing it.
+    try {
+      await this.allowReconnection(client, 60);
+      player.isConnected = true;
+      console.log(`Player reconnected: ${player.playerId}`);
+    } catch {
+      this.convertToBotAndCheckEmpty(player);
     }
   }
 
   onDispose() {
     if (this.turnTimer) clearTimeout(this.turnTimer);
-    // TEMP DIAGNOSTIC: proves whether/when the previous match's room is ever
-    // actually disposed.
-    this.logDiag('onDispose', { roomId: this.roomId, matchId: this.state.matchId });
+    this.logRoom('disposed');
     console.log(`GameRoom disposed: ${this.state.matchId}`);
   }
 
-  /** TEMP DIAGNOSTIC helper for the stale-match-resume investigation — remove
-   * once the fix lands. Structural fields only (ids, counts, coords already
-   * visible to clients in that room) — no secrets, matches logAction's style. */
-  private logDiag(event: string, fields: Record<string, unknown>): void {
-    console.log(JSON.stringify({ diag: event, ...fields }));
+  /** One structured log line per room lifecycle event (created, locked,
+   *  disposing, disposed) — mirrors logAction's shape (Decision 093) for
+   *  room-level rather than per-move events. Non-sensitive: ids/counts only. */
+  private logRoom(phase: string, fields: Record<string, unknown> = {}): void {
+    console.log(JSON.stringify({ event: 'room', roomId: this.roomId, matchId: this.state.matchId, phase, ...fields }));
+  }
+
+  /** A player who will never return this session (permanently disconnected,
+   *  or an intentional leave) is converted to a bot so their opponent isn't
+   *  stuck waiting on a turn that can never come — same behavior GDD already
+   *  specifies for accidental drops (Decision 011/012/029), applied here to
+   *  the accidental-AND-intentional cases uniformly. checkAllBots then
+   *  destroys the room once every remaining player is a bot (point 3/4). */
+  private convertToBotAndCheckEmpty(player: PlayerSchema): void {
+    player.isBot = true;
+    console.log(`Player replaced by bot: ${player.playerId}`);
+    this.broadcast('player_afk_bot_controlling', { playerId: player.playerId });
+    this.checkAllBots();
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
@@ -181,6 +172,12 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     }
   }
 
+  /** Every caller (onJoin's human path, onJoin's solo-bot path) is guarded
+   *  to run only while this.state.players.size < maxClients (point 6) — the
+   *  onJoin guard above refuses a 3rd join outright, so `slot` here never
+   *  exceeds 1. Departed players are never deleted from this map (bot
+   *  conversion is an intentional, permanent feature — Decision 011/012/029
+   *  — not a leak), only ever added while under the cap. */
   private addPlayer(playerId: string, username: string, isBot: boolean): void {
     const slot = this.state.players.size;
     const cols = this.boardCols();
@@ -324,7 +321,11 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     console.log(JSON.stringify({ event: 'action', matchId, turn, playerId, action, payload, verdict }));
   }
 
-  /** Returns true (and ends the match) if checkWinCondition now reports a winner. */
+  /** Returns true (and ends the match) if checkWinCondition now reports a
+   *  winner. checkWinCondition (Decision 073) already checks the turn-limit
+   *  backstop before all_treasure/score_target, so this single path covers
+   *  every win/turn-limit termination — no room may outlive its match
+   *  (point 3): once finished, it is disposed, never left to linger. */
   private checkForWinner(): boolean {
     const winnerId = checkWinCondition(this.toPureState());
     if (!winnerId) return false;
@@ -333,6 +334,8 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     if (this.turnTimer) clearTimeout(this.turnTimer);
     this.broadcast('match_ended', { winnerId });
     console.log(`Match ended: ${this.state.matchId}, winner=${winnerId}`);
+    this.logRoom('disposing', { reason: 'match_ended', winnerId });
+    void this.disconnect();
     return true;
   }
 
@@ -350,11 +353,15 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     return this.boardCols();
   }
 
+  /** Destroys the room once it has emptied of humans (point 4) — every
+   *  remaining player permanently bot-controlled, whether via reconnection
+   *  timeout, an intentional leave, or a from-the-start solo-vs-bot match. */
   private checkAllBots() {
     const allBots = [...this.state.players.values()].every(p => p.isBot);
     if (allBots) {
       this.state.status = 'abandoned';
       console.log('All players are bots — match abandoned');
+      this.logRoom('disposing', { reason: 'all_bots_abandoned' });
       void this.disconnect();
     }
   }
