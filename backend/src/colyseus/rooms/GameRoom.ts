@@ -48,12 +48,32 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     this.onMessage('move_explorer', (client, message) => this.handleMoveExplorer(client, message));
     this.onMessage('end_turn', (client) => this.handleEndTurn(client));
 
+    // TEMP DIAGNOSTIC (stale-match-resume investigation, remove after fix lands)
+    this.logDiag('onCreate', { roomId: this.roomId, matchId: this.state.matchId, locked: this.locked });
     console.log(`GameRoom created: ${this.state.matchId}`);
   }
 
   async onJoin(client: Client, options: any) {
     const playerId: string = options.playerId || client.sessionId;
     const username: string = options.username || 'Player';
+
+    // TEMP DIAGNOSTIC: state of the room BEFORE this join is applied — the
+    // key evidence for whether this is a fresh room or a resumed one.
+    this.logDiag('onJoin:before', {
+      roomId: this.roomId,
+      sessionId: client.sessionId,
+      incomingPlayerId: playerId,
+      vsBot: !!options.vsBot,
+      locked: this.locked,
+      clientsConnected: this.clients.length,
+      existingPlayerCount: this.state.players.size,
+      existingPlayerIds: [...this.state.players.keys()],
+      revealedTileCount: [...this.state.tiles.values()].filter(t => t.isRevealed).length,
+      totalTileCount: this.state.tiles.size,
+      explorerPositions: [...this.state.explorers.values()].map(e => ({ id: e.explorerId, x: e.x, y: e.y })),
+      currentPlayerId: this.state.turnState.currentPlayerId,
+      matchStatus: this.state.status,
+    });
 
     this.sessionToPlayerId.set(client.sessionId, playerId);
     this.addPlayer(playerId, username, false);
@@ -72,12 +92,35 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     }
 
     if (this.state.players.size >= 2) this.startMatch();
+
+    // TEMP DIAGNOSTIC: room's own turnState + own playerId mapping right after
+    // join — proves/disproves the "Waiting… on both" deadlock (goal Q4).
+    this.logDiag('onJoin:after', {
+      roomId: this.roomId,
+      sessionId: client.sessionId,
+      joinedAsPlayerId: playerId,
+      currentPlayerId: this.state.turnState.currentPlayerId,
+      turnMatchesJoiner: this.state.turnState.currentPlayerId === playerId,
+      locked: this.locked,
+    });
   }
 
   async onLeave(client: Client, code?: number) {
     const player = this.findPlayerBySession(client.sessionId);
     if (!player) return;
     player.isConnected = false;
+
+    // TEMP DIAGNOSTIC: the close code and lock state at the moment of leave —
+    // the key evidence for whether a non-clean close enters the reconnection
+    // window WITHOUT locking the room against new join_or_create matchmaking.
+    this.logDiag('onLeave', {
+      roomId: this.roomId,
+      sessionId: client.sessionId,
+      playerId: player.playerId,
+      code,
+      locked: this.locked,
+      clientsConnected: this.clients.length,
+    });
     console.log(`Player disconnected: ${player.playerId}`);
 
     // code 1000 = normal/intentional close; anything else = unexpected drop
@@ -97,7 +140,17 @@ export class GameRoom extends Room<{ state: FogboundState }> {
 
   onDispose() {
     if (this.turnTimer) clearTimeout(this.turnTimer);
+    // TEMP DIAGNOSTIC: proves whether/when the previous match's room is ever
+    // actually disposed.
+    this.logDiag('onDispose', { roomId: this.roomId, matchId: this.state.matchId });
     console.log(`GameRoom disposed: ${this.state.matchId}`);
+  }
+
+  /** TEMP DIAGNOSTIC helper for the stale-match-resume investigation — remove
+   * once the fix lands. Structural fields only (ids, counts, coords already
+   * visible to clients in that room) — no secrets, matches logAction's style. */
+  private logDiag(event: string, fields: Record<string, unknown>): void {
+    console.log(JSON.stringify({ diag: event, ...fields }));
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────

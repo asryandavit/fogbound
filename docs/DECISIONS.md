@@ -1988,3 +1988,88 @@ chunks scoped for this goal). See docs/AGENT.md for exactly what to check.
 Security: neutral — pure client-side rendering/input-mapping change; no
 server coordinates, validation, or state are transformed (client remains a
 pure renderer per the locked architecture invariant).
+
+## 099 — DIAGNOSIS ONLY: stale-match resume root cause found; fix pending approval (2026-07-26)
+
+Status: diagnosed, NOT fixed. No behavior change in this entry — only
+temporary structural logging was added (`GameRoom.logDiag`, clearly marked
+"TEMP DIAGNOSTIC", intended to be removed once the real fix lands).
+
+Symptom: pressing Play ("vs Player") on two devices sometimes resumes an
+old, partially-explored, multi-player-contaminated room instead of
+matchmaking a fresh one — both devices show "Waiting…" simultaneously.
+
+**Root cause, confirmed at three independent levels of evidence:**
+
+1. **Framework source** (`node_modules/@colyseus/core/src/Room.ts:185-186`):
+   "Unless the room was explicitly locked by you via `lock()` method, the
+   room will be unlocked as soon as a client disconnects from it." Colyseus
+   auto-locks a room once `maxClients` is reached, but that lock is NOT
+   `_lockedExplicitly` — so it is automatically undone the instant either
+   client disconnects, including entering the `allowReconnection(client,
+   60)` grace window (Decision 045). `GameRoom.onLeave` never calls
+   `this.lock()` (unlike the solo-vs-bot path in `onJoin`, which explicitly
+   locks — Decision 071 — specifically because a bot isn't a client
+   connection). This means a "vs Player" room becomes eligible for
+   `join_or_create` again the moment either player drops, reconnection
+   window or not.
+2. **Organic evidence, pre-existing this session** (`adb logcat`, both
+   emulators, spanning 05:40–12:25): room `k6mp9sxr1` was reused across a
+   `dropped(1006)` → `reconnected` cycle AND a later fresh `join_or_create`,
+   accumulating to `players:3 explorers:6` (confirmed via `state decoded —
+   tiles:169 explorers:6 players:3`), with `player_afk_bot_controlling`
+   firing every ~60–70s (the turn timer expiring on an orphaned player slot
+   nothing live maps to).
+3. **Staged reproduction, this session** (backend rebuilt with temp
+   diagnostics, two real emulators, "vs Player"): killed one client
+   mid-match with `adb shell am force-stop` (close code 1006, confirmed in
+   `onLeave` diag log), relaunched, pressed Play again — landed back in the
+   SAME `roomId` as a brand-new THIRD player:
+   `{"diag":"onJoin:before","roomId":"hkfI_oRzj","incomingPlayerId":
+   "player_24968","locked":true,"existingPlayerCount":2,"existingPlayerIds":
+   ["player_203923283","player_203924935"],"matchStatus":"in_progress",
+   "currentPlayerId":"player_203923283"}` — then
+   `"turnMatchesJoiner":false`. Screenshot confirms the rejoined device
+   showing "Waiting…" with the OLD orphaned player's explorers still on the
+   board. (Nuance: `locked` reads `true` at these log points — Colyseus's
+   automatic un-lock is not synchronous with the disconnect event in a way
+   my logging point could catch cleanly; this doesn't weaken the
+   conclusion, since the framework's own documented behavior in point 1,
+   and the observed reuse itself, are independently conclusive.)
+
+**Compounding factor:** `GameRoom.addPlayer` computes `slot =
+this.state.players.size` unconditionally — since `onLeave` never removes
+a departed player's entry (only sets `isConnected=false` / eventually
+`isBot=true`), a genuinely new join always ADDS a new slot rather than
+reclaiming a stale one, so the player/explorer count keeps growing (2→4→6
+explorers) instead of resetting.
+
+**Recommended fix (NOT implemented — awaiting approval):** call
+`this.lock()` once a "vs Player" match genuinely starts (`onJoin`, right
+after `startMatch()` fires), in addition to the existing solo-bot lock.
+Since Colyseus's own auto-unlock-on-disconnect explicitly only applies when
+the lock was NOT set explicitly (`_lockedExplicitly`), an explicit
+`this.lock()` here persists across any future disconnect — closing the gap
+at its source with one line, no new concept, mirrors the existing
+solo-bot pattern exactly. Secondary, smaller fix: call `this.disconnect()`
+in `checkForWinner()` (mirroring `checkAllBots()`) so a normally-finished
+match's room doesn't linger indefinitely either.
+
+**Tradeoff:** locking at match-start permanently forecloses that room to
+ANY future join_or_create, including the (currently nonexistent, and not
+implemented client-side) case of a real reconnection via `join_or_create`
+instead of the SDK's own internal reconnect-by-token — but the Godot client
+never attempts that path today (confirmed: `network_manager.gd` has no
+`client.reconnect(...)` call anywhere; the SDK's own transport-level
+auto-reconnect, which this fix does not affect, is what already worked
+correctly for the organic case in evidence #2 above). Does not by itself
+prune the never-removed stale player entries in `addPlayer` — a separate,
+smaller cleanup, not required for the deadlock itself to stop recurring.
+Only meaningful if the game ever needs >2 concurrent human players per
+room (not the case today — Decision 071 hardcodes `maxClients=2`).
+
+Documentation: this entry; docs/AGENT.md (recorded as a blocker under
+Fun-Gate Playtest v2 — this is very likely what actually caused the
+"Waiting… on both" observation that motivated that milestone).
+Security: neutral — matchmaking/room-lifecycle correctness fix, no new
+trust boundary; server remains sole authority throughout.

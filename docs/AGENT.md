@@ -911,8 +911,29 @@ orientation fix above is now ALSO a precondition — a disoriented board
 "pollutes every other judgment about the match" (this is in fact how the
 orientation bug was found: mid-attempt at this exact playtest).
 
+**BLOCKER found and diagnosed 2026-07-26, NOT yet fixed (see Decision 099):**
+pressing Play ("vs Player") can resume a stale, already-in-progress room
+instead of matchmaking a fresh one — both devices show "Waiting…"
+simultaneously on a partly-explored board. This is almost certainly what
+was actually happening during earlier fun-gate attempts. Root cause
+confirmed at three levels (Colyseus framework source, organic logs from
+this session, and a staged live repro): `GameRoom` never calls `this.lock()`
+for a "vs Player" match, so Colyseus's own automatic room-lock is undone
+the instant either client disconnects (even into the `allowReconnection`
+grace window) — a new `join_or_create` then matches into the still-open
+room as a 3rd/4th player rather than a fresh 2-player match. Recommended
+fix (one line, `this.lock()` after `startMatch()`) is written up in
+Decision 099 but requires explicit approval before being built — **this
+must land and be verified before Fun-Gate V2 (task 1 below) can produce a
+trustworthy result**, since a resumed stale room would invalidate the
+"clean 2-emulator match" premise entirely.
+
 Next 3 tasks:
-1. **FUN-GATE V2**: rebuild + redeploy the APK (per the Android APK Build
+1. **Fix + verify Decision 099** (stale-match resume) — build the approved
+   fix, confirm via a repeat of this session's repro (kill one client
+   mid-match, relaunch, Play again) that it now lands in a genuinely fresh
+   room, not the old one.
+2. **FUN-GATE V2**: rebuild + redeploy the APK (per the Android APK Build
    sprint pipeline, above) to the two running emulators; clean 2-emulator
    match; self-verify tap / undo / drag-pan / own-base-at-bottom live, on
    BOTH devices — none of these five things have been confirmed together
@@ -920,10 +941,9 @@ Next 3 tasks:
    one. For the orientation fix specifically: confirm a tap lands correctly
    on the device that was previously top-oriented (proves the inverse
    tap-mapping, not just the rendering) and that labels stay upright.
-2. Answer the fun-gate question directly: Play Again, or put the phone
-   down — and why?
-3. Depending on that answer: a legibility pass (treasure/carry affordance)
-   or a loop redesign.
+3. Answer the fun-gate question directly: Play Again, or put the phone
+   down — and why? Depending on that answer: a legibility pass
+   (treasure/carry affordance) or a loop redesign.
 
 Tech debt (not blocking, tracked for later):
 - Fog enforcement is visual-only (Decision 049) — needs StateView hardening
