@@ -995,6 +995,32 @@ Tech debt (not blocking, tracked for later):
   this hook can be trusted against compound commands, not just bare ones.
 - Jest cannot import `colyseus`/`@colyseus/core` at all (see entry above)
   — no Room-lifecycle integration test coverage is possible today.
+- **OPEN: Decision 100 point 6 (no slot accumulation) implemented only as
+  an outer cap, not at its two named mechanisms.** Commit 88256c9 added the
+  `onJoin` guard (`players.size >= maxClients` → `client.leave(4000)`),
+  which does bound the slot count, but the two mechanisms the spec point
+  actually called for were NOT done and this was not tracked as open:
+  (a) `addPlayer` still computes `const slot = this.state.players.size`
+  unconditionally (`GameRoom.ts:182`), and (b) departed players are still
+  left as permanent bot-flagged entries, never reclaimed or removed —
+  Decision 100 records this as deliberate (bot takeover, Decision
+  011/012/029, needs the entry to keep playing), which is correct *during*
+  a live match but not before one starts.
+  Residual failure scenario (code-level, not yet live-reproduced): a room
+  holding exactly ONE waiting player is not yet locked (lock fires only at
+  `size >= 2`) and is not yet full, so the `maxClients` guard does not
+  fire. If that player drops and presses Play again inside their 60s
+  reconnection window, `join_or_create` can route them back into that same
+  room — and because the client mints a fresh `player_%d` id per join
+  (`network_manager.gd:63`), they are added as a *second* player at slot 1
+  while their own abandoned entry keeps slot 0. Result: the match starts
+  2-up with the first turn assigned to the departed ghost, the human waits
+  out the 60s window before the ghost becomes a bot, and the board carries
+  4 explorers for one human. Live scenarios (c)/(d) in Decision 100 did not
+  cover this because both started from an already-locked 2-player room.
+  Fix direction: reclaim a departed, pre-match player's slot on rejoin (or
+  derive `slot` from the free slot set rather than from map size) — do not
+  weaken the in-match bot-takeover entry retention.
 
 Parked for post-fun-gate (from v1 playtest findings, still open):
 - Treasure affordance — yellow tile not readable as a pick-up.
