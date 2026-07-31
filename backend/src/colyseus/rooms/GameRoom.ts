@@ -7,6 +7,7 @@ import { isValidMove, applyMove, checkWinCondition } from '../model/GameRules';
 import { GameState, TileState, ExplorerState, PlayerState, tileKey } from '../model/GameState';
 import { placeTreasure } from '../model/BoardSetup';
 import { chooseBotAction } from '../model/BotAI';
+import { releasePreMatchSeat } from './PlayerSlots';
 
 const COLORS = ['red', 'blue', 'green', 'yellow'];
 const EXPLORERS_PER_PLAYER: Record<number, number> = {
@@ -99,6 +100,16 @@ export class GameRoom extends Room<{ state: FogboundState }> {
     player.isConnected = false;
     console.log(`Player disconnected: ${player.playerId}`);
 
+    // Pre-match only (Decision 101): the seat is released outright instead of
+    // entering the reconnection window, so a rejoin inside those 60s cannot be
+    // seated behind the joiner's own abandoned entry. Once the match is under
+    // way this returns false and everything below runs exactly as before.
+    if (releasePreMatchSeat(this.state, player.playerId)) {
+      this.sessionToPlayerId.delete(client.sessionId);
+      this.logRoom('seat_released', { playerId: player.playerId, playersRemaining: this.state.players.size });
+      return;
+    }
+
     // Every disconnect — an intentional Exit/Play Again as much as an
     // accidental drop — goes through the same 60s reconnection window here.
     // The Godot client's native SDK does not distinguish these: `leave()`
@@ -175,9 +186,10 @@ export class GameRoom extends Room<{ state: FogboundState }> {
   /** Every caller (onJoin's human path, onJoin's solo-bot path) is guarded
    *  to run only while this.state.players.size < maxClients (point 6) — the
    *  onJoin guard above refuses a 3rd join outright, so `slot` here never
-   *  exceeds 1. Departed players are never deleted from this map (bot
-   *  conversion is an intentional, permanent feature — Decision 011/012/029
-   *  — not a leak), only ever added while under the cap. */
+   *  exceeds 1. A pre-match departure releases its seat (Decision 101), so
+   *  map size stays a correct allocator for the only phase that allocates;
+   *  in-match departures keep their entry permanently for bot takeover
+   *  (Decisions 011/012/029). */
   private addPlayer(playerId: string, username: string, isBot: boolean): void {
     const slot = this.state.players.size;
     const cols = this.boardCols();

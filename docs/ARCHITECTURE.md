@@ -148,9 +148,15 @@ Results overlay (CanvasLayer above HUD — win/lose + scores)
   an autoload and outlives the scene). Called directly, not via a StateMapper
   helper — see the static-no-op risk row below.
 - **Room lifecycle:** "vs Bot" uses SDK `create()` (fresh room); "vs Player" uses
-  `join_or_create()`. Server caps `maxClients = 2` and `lock()s` a solo-bot room
-  so matchmaking can't collide. `disconnect_from_match` tears down every room
-  signal handler and nulls the client so a left room can't call back in.
+  `join_or_create()`. Server caps `maxClients = 2` and `lock()s` the room the
+  moment both seats fill — vs-Player and solo-vs-bot alike — then disposes it at
+  match end or once emptied of humans, so matchmaking can't collide (Decision
+  100). A player who leaves *before* the match starts has their seat released
+  outright, so a rejoin inside the reconnection window takes a clean seat rather
+  than sitting behind its own ghost (Decision 101); once the match is under way
+  the seat is retained for bot takeover instead. `disconnect_from_match` tears
+  down every room signal handler and nulls the client so a left room can't call
+  back in.
 
 ## State Observation: full re-sync on state_changed (Decision 069)
 

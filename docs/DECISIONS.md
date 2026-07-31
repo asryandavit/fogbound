@@ -2116,6 +2116,12 @@ diagnosis.
    unchanged in mechanism (departed players are intentionally never
    deleted — bot-takeover, Decision 011/012/029, needs their entry to keep
    playing) but is now only ever called while structurally under the cap.
+   *Status (2026-07-31): SUPERSEDED IN PART by Decision 101.* The cap holds,
+   but it is inert while a room has exactly one waiting player — neither full
+   nor yet locked — and a rejoin there was seated behind the joiner's own
+   ghost. Decision 101 releases the seat outright for `status === 'pending'`
+   departures; the never-delete policy stated here remains in force for
+   everything from match start onward.
 7. *Guarantee* — proven live below: consecutive Play presses land in
    different room ids with fresh boards and exactly 2 slots, across four
    different disconnect scenarios.
@@ -2225,3 +2231,99 @@ Security: neutral — matchmaking/room-lifecycle correctness fix. No new
 trust boundary; server remains sole authority throughout; `client.leave(4000,
 ...)` on an over-capacity join is a defensive refusal, not a new attack
 surface.
+
+## 101 — Pre-match seat reclaim: supersedes Decision 100 point 6 for the pending phase (2026-07-31)
+
+Status: ADOPTED, verified by Jest and by a live pre-fix/post-fix repro.
+Supersedes the mechanism recorded in Decision 100 point 6 for the pre-match
+phase ONLY. In-match behavior is unchanged and remains governed by Decisions
+011/012/029.
+
+**What Decision 100 point 6 actually shipped, and what it missed.** Commit
+88256c9 satisfied "no slot accumulation" with an outer cap in `onJoin`
+(`players.size >= maxClients` → `client.leave(4000, 'Room is full')`), and
+explicitly left `addPlayer`'s `slot = players.size` and the never-delete
+policy alone. That cap bounds the count, but it is inert in exactly one
+state: a room holding ONE waiting player is neither full nor yet locked
+(`lock()` fires at `size >= 2`). Confirmed by running the repro harness
+against 88256c9 unmodified — a departed pre-match player's seat is retained,
+so a rejoin inside the 60s window is seated *behind their own ghost*:
+
+    {"probe":"B:after-rejoin","roomId":"xk4_3SoXn","status":"in_progress",
+     "players":2,"explorers":4,"currentPlayerId":"player_1001",
+     "seats":[{"id":"player_1001","slot":0,"bot":false,"connected":false},
+              {"id":"player_1002","slot":1,"bot":false,"connected":true}]}
+
+The match starts 1 human + 1 ghost, the first turn belongs to the ghost, and
+the board carries 4 explorers for one person — the "Waiting…" deadlock of
+Decision 099 reached by a different route than the one 100 closed.
+
+**Decision.** A departure while `status === 'pending'` releases the seat:
+`state.players.delete(playerId)`, and the seat's explorers with it. There is
+no match to bot-control, so there is nothing the entry could still be for.
+Once `status` has left `'pending'` the release is refused and `onLeave` runs
+byte-identically to before — 60s `allowReconnection`, then bot conversion,
+then `checkAllBots` (Decisions 011/012/029, 045).
+
+Explorers go with the seat deliberately: an orphaned pair would still render
+on the next joiner's board, reproducing the very artifact this closes.
+
+**Deliberately NOT done** (goal boundary): no free-slot allocator, and
+`addPlayer`'s `slot = players.size` is untouched. With pre-match release,
+map size is again a correct allocator for the only phase in which allocation
+happens — a released seat drops the size back, so the next joiner takes
+slot 0. The cap from Decision 100 point 6 stays as defense in depth.
+
+**Where it lives.** `releasePreMatchSeat` sits in
+`backend/src/colyseus/rooms/PlayerSlots.ts`, not inside `GameRoom`, purely so
+Jest can reach it: importing `colyseus` under Jest is still blocked by the
+rou3 ESM gap (Decision 100), while `@colyseus/schema` imports cleanly —
+re-confirmed this session with a throwaway probe spec. `GameRoom.onLeave`
+calls it and returns early on a release, also clearing the
+`sessionToPlayerId` entry and emitting a `seat_released` room log line.
+
+**Verification.**
+- Jest, 6 new cases in `PlayerSlots.spec.ts`: pre-match join→leave→join
+  yields ONE seat at slot 0 with no ghost; explorers released with the seat;
+  a second genuine opponent still lands at slot 1 (4 explorers total);
+  refused in `in_progress` with the entry retained and bot-convertible;
+  refused in every non-pending status and for an unknown id; idempotent.
+  Full suite 111/111 (was 105 — Decision 095 baseline plus these 6).
+- Live, in-process against the real `GameRoom` over real websockets
+  (`@colyseus/testing`, installed with `--no-save` and removed afterward;
+  `package.json`/`package-lock.json` verified unchanged). Same harness run
+  against pre-fix and post-fix code:
+  - pre-fix → FAIL, log pasted above.
+  - post-fix → PASS. The seat is released, the emptied room disposes, and
+    the relaunched client creates a clean one:
+
+        {"event":"room","roomId":"d_IW-Nio_","phase":"seat_released",
+         "playerId":"player_1001","playersRemaining":0}
+        {"event":"room","roomId":"d_IW-Nio_","phase":"disposed"}
+        {"event":"room","roomId":"yZZZTU7l9","phase":"created"}
+        {"probe":"B:after-rejoin","roomId":"yZZZTU7l9","status":"pending",
+         "players":1,"explorers":2,"currentPlayerId":"",
+         "seats":[{"id":"player_1002","slot":0,"bot":false,"connected":true}]}
+
+  - in-match control → PASS: drop mid-match keeps the seat
+    (`players:2` throughout), converts it to a bot after the 60s window
+    (`{"id":"player_1001","slot":0,"bot":true,"connected":false}`), then
+    cascades all-bots → `disposing` → `disposed`, exactly as before.
+  - Decision 100 scenario (e), transport blip + token reconnect → PASS:
+    same roomId, `players:2 explorers:4`, seat never released, no bot
+    conversion. This covers the server half of (e); the Godot native SDK's
+    own auto-reconnect on a real device is unchanged code and still rests on
+    Decision 100's device verification.
+
+**Not verified here:** the on-device version of this repro (force-stop an
+APK in a waiting room, relaunch, press Play). No emulator was attached this
+session — `adb devices` empty. The server-side path is proven above; the
+device path is a Fun-Gate V2 checklist item.
+
+Documentation: this entry; Decision 100 point 6 status pointer; docs/AGENT.md
+(tech-debt item closed).
+Security: neutral. Server remains sole authority; the released seat belongs
+to a departed connection and is deleted server-side only. No new trust
+boundary, no client-supplied identity is trusted any further than before —
+a rejoining client still cannot name an existing seat, it can only occupy a
+free one.

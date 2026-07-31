@@ -975,7 +975,12 @@ Next 3 tasks:
    automated one. For the orientation fix specifically: confirm a tap
    lands correctly on the device that was previously top-oriented (proves
    the inverse tap-mapping, not just the rendering) and that labels stay
-   upright.
+   upright. Add one more sequence (Decision 101, server side already
+   proven): press Play on ONE device only, leave it sitting on "Waiting…",
+   `adb shell am force-stop` it, relaunch, press Play again inside 60s —
+   the second device then joins. Expect a normal 2-human match; a first
+   turn that never arrives, or 4 explorers with only one opponent, means
+   the pre-match seat release did not hold on-device.
 2. Answer the fun-gate question directly: Play Again, or put the phone
    down — and why?
 3. Depending on that answer: a legibility pass (treasure/carry affordance)
@@ -995,8 +1000,8 @@ Tech debt (not blocking, tracked for later):
   this hook can be trusted against compound commands, not just bare ones.
 - Jest cannot import `colyseus`/`@colyseus/core` at all (see entry above)
   — no Room-lifecycle integration test coverage is possible today.
-- **OPEN: Decision 100 point 6 (no slot accumulation) implemented only as
-  an outer cap, not at its two named mechanisms.** Commit 88256c9 added the
+- **CLOSED 2026-07-31 (Decision 101): Decision 100 point 6 was implemented
+  only as an outer cap, not at its two named mechanisms.** Commit 88256c9 added the
   `onJoin` guard (`players.size >= maxClients` → `client.leave(4000)`),
   which does bound the slot count, but the two mechanisms the spec point
   actually called for were NOT done and this was not tracked as open:
@@ -1006,7 +1011,8 @@ Tech debt (not blocking, tracked for later):
   Decision 100 records this as deliberate (bot takeover, Decision
   011/012/029, needs the entry to keep playing), which is correct *during*
   a live match but not before one starts.
-  Residual failure scenario (code-level, not yet live-reproduced): a room
+  Residual failure scenario — since CONFIRMED live against 88256c9
+  unmodified, then fixed (Decision 101): a room
   holding exactly ONE waiting player is not yet locked (lock fires only at
   `size >= 2`) and is not yet full, so the `maxClients` guard does not
   fire. If that player drops and presses Play again inside their 60s
@@ -1018,9 +1024,18 @@ Tech debt (not blocking, tracked for later):
   out the 60s window before the ghost becomes a bot, and the board carries
   4 explorers for one human. Live scenarios (c)/(d) in Decision 100 did not
   cover this because both started from an already-locked 2-player room.
-  Fix direction: reclaim a departed, pre-match player's slot on rejoin (or
-  derive `slot` from the free slot set rather than from map size) — do not
-  weaken the in-match bot-takeover entry retention.
+  **Resolution (Decision 101):** a departure while `status === 'pending'`
+  now releases the seat and its explorers outright
+  (`releasePreMatchSeat`, `backend/src/colyseus/rooms/PlayerSlots.ts`,
+  called from `GameRoom.onLeave`); in-match departures are byte-identical
+  to before. No free-slot allocator was built and `addPlayer`'s
+  `slot = players.size` is untouched — with pre-match release, map size is
+  again a correct allocator for the only phase that allocates. Verified by
+  6 new Jest cases (suite 111/111) and by a live in-process repro that
+  FAILS on 88256c9 and PASSES after, plus in-match bot-retention and
+  transport-reconnect controls (logs in Decision 101). Still needs the
+  on-device version of the repro — no emulator was attached; folded into
+  the Fun-Gate V2 checklist below.
 
 Parked for post-fun-gate (from v1 playtest findings, still open):
 - Treasure affordance — yellow tile not readable as a pick-up.
