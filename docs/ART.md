@@ -9,14 +9,34 @@ re-synced whenever this file changes.
 Phase 1 (art direction foundation) in progress. Rules below are locked unless
 marked provisional. Production art is gated behind fun-gate v2 per the roadmap.
 
+## Locked visual direction (phase 1 + terrain)
+
+- **Direction name: "Angular Expedition".** Flat faceted shapes, heavy dark
+  outlines, muted desaturated terrain, geometric silhouettes. Flat like the
+  approved reference sheet — never one step more rendered: no soft painting, no
+  gradients beyond a single flat shade step, no isometric terrain.
+- All 9 launch terrains pass the 55px grayscale silhouette test — grass, sand,
+  jungle, rocks, swamp, cart, trap, ruins, spyglass — each distinguishable by
+  outline alone.
+- Treasure contact shadow is a NEUTRAL dark shape, terrain-agnostic. Never a
+  green pedestal, never a terrain-tinted patch.
+- Content (chest, pieces) may sit more upright than the ~15° terrain tilt. This
+  is an accepted, deliberate choice for small-size readability, not a drift.
+- Sand is the quietest terrain but must carry a minimal cue (a dune line) so it
+  never reads as fog/unrevealed.
+- This reference is direction only. Production sprites are authored separately
+  once the art-production pipeline is decided (end of phase 1), gated behind
+  fun-gate v2.
+
 ## Core style rules (locked)
 
 - Flat 2D top-down. Flat color fills, maximum two shade steps per object (base
   tone + one darker shadow tone). No gradients, no specular highlights, no
-  painted rendering, no low-poly faceting, no drop shadows as style.
+  painted rendering, no low-poly faceting (3D-shaded triangles — flat angular
+  geometry IS the direction), no drop shadows as style.
 - Not isometric, not 3D.
 - One camera angle across every asset: top-down with a slight forward tilt
-  (~15°).
+  (~15°) — content may sit more upright, see Locked visual direction.
 - Silhouette-first: every object must be recognizable by outline alone at 55px,
   and must remain distinguishable in grayscale. Internal detail is subordinate
   — it enriches when zoomed in, never carries recognition.
