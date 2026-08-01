@@ -2360,3 +2360,66 @@ LIGHTER than its terrain in grayscale. Tier is carried by silhouette — coin
 Documentation: this entry; docs/GDD.md design backlog (placement model and
 its consequence for map generation).
 Security: none — presentation and content-layout model only.
+
+## 103 — Launch tile set: 9 self-contained terrains, treasure eligibility per terrain (2026-07-31)
+
+Status: ADOPTED (design). Supersedes the GDD "Tier 1 — Launch Tiles" list as
+the definition of launch scope, and narrowly supersedes Decision 050 rule 2
+(step-only reveal) for the Spyglass tile. The full tile set is defined in
+docs/GDD.md "Launch tile set"; this entry records the choices and what they
+displace.
+
+**Tile design principle (locked).** Every tile is SELF-CONTAINED: terrain never
+bleeds across cell edges, no multi-tile features, no road or rail continuity
+between tiles. The board is a shuffled deck of independent tiles, not a
+landscape. Per-tile surprise on reveal is the core loop, and each tile reads as
+a bounded card with a crisp edge. This is what makes fog reveal feel like
+turning a card rather than uncovering a map, and it is why the Cart tile's rails
+stop at its own edge (one design × 4 rotations) instead of connecting.
+
+**Launch terrain set: 9 types, island/pirate only, no biome mixing at launch.**
+Grass, Sand, Jungle, Rocks, Swamp, Cart, Trap, Ruins, Spyglass — each carrying a
+treasure-eligibility flag consumed by map generation. Eligibility is a
+MAP-GENERATION rule per terrain, never a tile type; content-on-tile (Decision
+102) is unchanged. Ruins is the worked example in the other direction: terrain
+that ATTRACTS content (weighted treasure bias) without becoming content itself.
+Swamp is treasure-ineligible at launch because loot that cannot be carried out
+is a cruelty, not a choice. Rocks is ineligible for the trivial reason that it
+is unwalkable.
+
+**Spyglass — narrow exception to step-only reveal.** Decision 050 rule 2 says a
+tile flips only when an explorer moves onto it. Spyglass lets the player who
+steps on it immediately reveal 2 fog tiles of their choice, permanently and for
+ALL players. Rules 1 (shared fog), 3 (explorers always visible), and 4 (full
+explorer transparency) are untouched, and the shared, permanent, visible-to-all
+nature of the reveal is what keeps this consistent with the model rather than a
+hole in it: it buys tempo, not private information. This is the ONLY sanctioned
+exception; any further one needs its own entry.
+
+**Bases (ships)** sit on the water frame, one per player side, mobile along
+their own side — they are not tiles and are not part of the terrain set.
+
+**What this displaces, and the code consequence.** The GDD's Tier 1 list (20
+tiles: Coins, Gems, Legendary Relic, Tunnel, Boat, Plane, Jungle, Quicksand,
+Ice, Desert, Sword, Shield, Cannon, Ancient Ruins, Watchtower, Camp, Fog Storm,
+Earthquake, Gold Rush, Trading Post) is no longer the launch scope; the tier
+tables stay as the long-term library. Two live divergences follow, both left for
+a future implementation task rather than silently changed here:
+- **Cannon** (`cannon_north/south/east/west`, Decision 086) is implemented and
+  currently spawning at 0.03 total, but is now expansion scope, not launch.
+- **Cart** is the existing `arrow_push` behavior (Decision 086) re-themed, not a
+  new mechanic. Sand, Jungle, Rocks, Swamp, Ruins, and Spyglass have no registry
+  entries yet.
+Nothing in `TileRegistry.ts` was touched by this entry — it is design-only, and
+the registry remains the data-record source of truth per Decisions 081/082.
+
+**Mechanic sequencing.** Only Grass, Sand, Rocks, and Ruins are expected to
+behave at launch; Jungle, Swamp, Cart, Trap, and Spyglass are marked
+post-fun-gate, so the launch board can be art-complete before those mechanics
+land.
+
+Documentation: this entry; docs/GDD.md ("Launch tile set" section added; Tier 1
+table marked superseded for launch scope).
+Security: none — design scope only. Spyglass reveals are server-authoritative
+like every other reveal, and reveal nothing that shared fog did not already make
+public.

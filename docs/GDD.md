@@ -239,7 +239,52 @@ Today only Coins and Shields (Tier 1, Treasure/Combat) are implemented.
 
 ---
 
+### Launch tile set (locked — Decision 103)
+
+**Tile design principle (locked):** every tile is SELF-CONTAINED. Terrain never
+bleeds across cell edges, there are no multi-tile features, and no road or rail
+continuity between tiles. The board is a shuffled deck of independent tiles, not
+a landscape — per-tile surprise on reveal is the core loop. Each tile reads as a
+bounded card with a crisp edge.
+
+**Launch terrain set — 9 types, island/pirate only (no biome mixing at launch).**
+The treasure column is a MAP-GENERATION rule per terrain, not a tile type;
+content-on-tile (Decision 102) is unchanged.
+
+| # | Terrain | Effect | Treasure | Mechanic status |
+|---|---------|--------|----------|-----------------|
+| 1 | Grass | None. Most common. | YES | at launch |
+| 2 | Sand | None; shoreline variety, mechanically = grass at launch. | YES | at launch |
+| 3 | Jungle | Entering ends the move. | YES | post-fun-gate |
+| 4 | Rocks | Impassable — the board's walls. | NO (unwalkable) | at launch |
+| 5 | Swamp | Enterable; treasure cannot be CARRIED through. | NO at launch | post-fun-gate |
+| 6 | Cart | Minecart on rails: entering pushes the explorer one tile in the rail direction. | NO | post-fun-gate |
+| 7 | Trap | Pit: explorer stuck until freed by their own explorer or N turns. | NO | post-fun-gate |
+| 8 | Ruins | No effect; map generation BIASES treasure here. | YES, weighted | at launch |
+| 9 | Spyglass | Stepping on it lets the player immediately reveal 2 fog tiles of their choice, permanently and for ALL players. | NO | post-fun-gate |
+
+- **Swamp treasure spawn is NO at launch** because loot inside would be
+  unreachable in practice — a cruelty, not a choice.
+- **Cart** rails are internal tile decoration only, with no cross-tile
+  continuity: one design × 4 rotations.
+- **Spyglass** is a controlled exception to step-only reveal, consistent with
+  shared fog — it narrowly supersedes Decision 050 rule 2 (see Decision 103).
+- **Ruins** is the worked example of terrain that attracts content rather than
+  being content (Decision 102).
+
+**Bases (ships)** sit on the water frame, one per player side, mobile along
+their own side. They are not tiles.
+
+**Out of launch scope:** expansion tiles (crocodile, rum, cannon, ice/lava
+biomes).
+
+---
+
 ### Tier 1 — Launch Tiles (20 tiles)
+
+> Superseded for LAUNCH SCOPE by the launch tile set above (Decision 103). The
+> three tier tables below remain the long-term tile library; they no longer
+> describe what ships at launch.
 
 | Category  | Tiles                                          |
 | --------- | ---------------------------------------------- |
