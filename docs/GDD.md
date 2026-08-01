@@ -522,6 +522,12 @@ exactly the kind of thing Decision 080 wants shipping first, not deferred.
 
 ### Design backlog (post-fun-gate)
 
+- **Treasure placement is content-on-tile** (Decision 102): a tile has terrain
+  and possibly content; treasure sits in the content layer and may be placed on
+  any walkable terrain. There is no treasure terrain type. Map generation
+  therefore places terrain FIRST, then places treasure to create tension —
+  chokepoints, fog depth, proximity to an opponent's base — rather than
+  distributing it by terrain type.
 - **Treasure variety** (from fun-gate v1, 2026-07-22): multiple treasure types
   with different point values (e.g. coin < artifact < chest), mirroring
   tile variety. Rationale: "what's under the next tile" anticipation is the

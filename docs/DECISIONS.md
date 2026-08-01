@@ -2327,3 +2327,36 @@ to a departed connection and is deleted server-side only. No new trust
 boundary, no client-supplied identity is trusted any further than before —
 a rejoining client still cannot name an existing seat, it can only occupy a
 free one.
+
+## 102 — Treasure placement model: content on a tile, never a terrain type (2026-07-31)
+
+Status: ADOPTED. Supersedes nothing — it formalizes what the renderer's
+tile/content split already implies, so that map generation and terrain art
+are both bound by it going forward.
+
+**The model.** A tile has terrain AND possibly content. Treasure is content
+placed ON a tile; it occupies the content layer and is never a terrain type.
+There is no "treasure tile". Treasure may be placed on ANY walkable terrain.
+
+**Rationale.** Separating terrain from contents keeps risk and reward
+orthogonal: treasure can sit behind a movement-cost tile, next to a
+chokepoint, or deep in fog, and each of those is a different bet for the
+player. That tension is the treasure race. Welding reward to terrain type
+collapses the design space to whatever the terrain list happens to be, and
+forces new tile art for every tier × terrain combination.
+
+**Corollary — binding on all future terrain art.** No terrain may be light
+enough or busy enough to break treasure legibility. Treasure must remain
+readable as a distinct object on every walkable terrain in the launch set.
+A terrain that fails this is the terrain's problem to fix, not the
+treasure's.
+
+**Visual rule, restated here for the placement context** (locked previously;
+repeated because placement is where it can be violated): treasure renders as
+an object at ~60% cell area with a contact shadow, dark-anchored, and reads
+LIGHTER than its terrain in grayscale. Tier is carried by silhouette — coin
+(circle), artifact (stepped angular), chest (banded rectangle).
+
+Documentation: this entry; docs/GDD.md design backlog (placement model and
+its consequence for map generation).
+Security: none — presentation and content-layout model only.
