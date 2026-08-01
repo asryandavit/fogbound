@@ -415,6 +415,9 @@ Slow-motion zoom on winning explorer's base. Orchestral stinger. Confetti in pla
 
 ## Visual Identity
 
+Art direction rules live in docs/ART.md — that file is the single source of
+truth for style, and it governs anything below that touches how art looks.
+
 ### Color Palette
 
 | Role | Hex | Usage |

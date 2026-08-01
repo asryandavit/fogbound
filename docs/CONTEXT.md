@@ -45,7 +45,8 @@ Inspired by Jackal board game mechanics but fully original.
 ## Folder Structure
 fogbound/
 ├── docker/          ← Docker compose files
-├── docs/            ← Architecture, GDD, decisions
+├── docs/            ← Architecture, GDD, decisions, art direction
+                       (art direction rules live in docs/ART.md)
 ├── backend/         ← NestJS + Colyseus
 │   └── db/
 │       ├── migrations/
