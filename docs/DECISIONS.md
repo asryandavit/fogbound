@@ -2490,3 +2490,103 @@ section; Inventory and Treasure Bag marked superseded).
 Security: none — design model only. Pickup, drop, and delivery are all
 server-validated and action-logged (Decision 093); the client renders carry
 state and requests actions, exactly as now.
+
+## 105 — Match UX model: zoom default, hit-snap, turn handoff, active-player ring, asymmetric reveal, attention-invitation (2026-08-02)
+
+Status: ADOPTED as a model. Client-side over the existing shared-fog reveal
+events (Decision 050) — no new server state anywhere in this entry. Camera
+default and input hit-snap are first-UX-sprint candidates, since both address
+v1 tap friction directly; everything else here is post-fun-gate. The full
+model is written up in docs/GDD.md "Match UX — camera, input, turn handoff,
+reveal feedback, attention system"; this entry records the reasoning and what
+it displaces.
+
+**Default camera changes from a board-fraction rule to a minimum-tile-size
+rule.** The existing Camera Behavior section (Decision 025) defines default
+zoom as "midpoint of min/max, centered on player's starting row" — a fraction
+of the board. This replaces that default specifically: tiles render at ≥56px
+on a typical phone, own base at the bottom, full-board overview reached by
+pinching out. Reason: 48dp is the minimum reliable touch target, and a full
+13×13 board fit on a phone screen puts tiles below that floor — the old
+default was, in effect, sometimes too small to reliably tap. Every other part
+of Decision 025 (pinch math, pivot, lerp speed, edge rubber-band, static
+camera during opponent turns) is untouched.
+
+**Hit-snap is additive, not a new interaction model.** The confirm-by-
+consequence flow (tap → tinted legal tiles → tap destination → confirm) stays
+exactly as specified. Legal-move tiles gain a ~30% larger hit area than their
+visual tile, with near-misses snapping to the nearest legal tile. This is
+purely a touch-target fix.
+
+**Turn handoff and the active-player ring extend Turn Transition (UX
+Patterns) rather than replace it.** The existing pan/banner/auto-dismiss
+sequence is unchanged. New on top: own-color vs neutral banner tint, a
+pulse-on-tap affordance so waiting never means silently dead input, a haptic
+on turn start, and the opponent's last move path-glowing for ~1s — turn start
+is already treated as a context switch (Decision 025's own auto-pan-on-your-
+turn rule agrees), so panning to show what just happened costs the player
+nothing they weren't already reorienting around. The active-player ring is
+new: a pulsing ring in the acting player's own color, scaling to 4 players.
+Gold/yellow is excluded on purpose — Decision 103's Ruins/treasure work and
+the ART.md treasure palette already claim that color family exclusively for
+treasure, and reusing it for turn state would blur the one legibility rule
+treasure depends on most.
+
+**Reveal feedback splits by audience and by significance, superseding Tile
+Reveal Feedback (UX Patterns, Decision 052/053) as a single shared
+animation.** The revealer gets a compact bottom card, but only for tiles that
+matter — trap, cart, spyglass, ruins, or any treasure — with plain grass/sand
+reduced to a bare flip. Opponents get a slim, non-blocking top banner instead
+of the same treatment. The flip/scale beat and the device-local
+disable-animations setting (Decision 053) remain the underlying mechanism for
+both cases; only who sees what, and how much of it, changes.
+
+**Attention invitation is opt-in, and this is the point of the whole rule.**
+An opponent's treasure reveal adds a tap-to-view affordance to their banner;
+tapping it pans the viewer's own camera there. If the reveal sits outside the
+current viewport, a small pulsing treasure icon at the screen edge points
+toward it instead of panning automatically. The game never force-moves a
+non-acting player's camera while they're waiting. This composes with, rather
+than weakens, Decision 025's existing "static camera during opponent turns —
+never follow opponent moves" fog-integrity rule: that rule is about
+involuntary camera movement leaking information or breaking a player's own
+orientation; a tap the player chooses to make is neither.
+
+**What this displaces.**
+- Camera Behavior's "Default on match start" line is superseded; everything
+  else in that section stands. A pointer was added at its top rather than
+  editing the bullet itself, so the original spec stays legible.
+- UX Patterns → Tile Reveal Feedback is superseded by the asymmetric
+  revealer/opponent split above; a pointer was added rather than rewriting it
+  in place.
+- UX Patterns → Turn Transition is extended, not superseded — a pointer notes
+  what's layered on top so a reader doesn't mistake the new detail for a
+  contradiction.
+- UX Patterns → Treasure Collection (arc-to-inventory-slot, "Inventory
+  counter flashes gold," "pickup bounces back... Inventory Full") is NOT
+  touched by this entry, but is already contradicted by Decision 104 (carry
+  capacity 1, automatic pickup, no pickup dialogs — there is no multi-slot
+  inventory left to fill, and "NEVER picks up while carrying" replaces the
+  bounce-back/denied state with silence). That gap predates this entry and is
+  out of scope here; flagging it so it isn't mistaken for something this
+  entry was supposed to resolve.
+- Nothing in Godot client code implements any of this yet — no camera
+  default, hit-snap, turn banner tint, active-player ring, reveal card split,
+  or attention-invitation affordance exists today. This is a model, not a
+  changelog.
+
+**Pre-existing citation gap, not introduced here:** GDD.md cites "Decision
+054" twice (one action per turn; live move tints on own explorer) but no such
+entry exists in this file — the numbering runs 053 → 055 with no 054 ever
+recorded. Not fixed here (out of scope for a doc-only append); noting it
+alongside the similar Decision 021 miscitation already logged in AGENT.md so
+it doesn't get rediscovered as if new.
+
+Documentation: this entry; docs/GDD.md (new "Match UX" section; superseded/
+extended pointers added to Camera Behavior, Tile Reveal Feedback, and Turn
+Transition).
+Security: none — client-side presentation and camera-control model only, over
+data the client already receives under shared fog (Decision 050). No new
+server state, no new trust boundary. The fog-integrity rule this composes
+with (Decision 025) is explicitly preserved, not loosened: automatic camera
+movement still never happens on a non-acting player's device.

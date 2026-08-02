@@ -442,6 +442,13 @@ not as permanent chrome.
 
 ## Camera Behavior
 
+> The "Default on match start" line below is SUPERSEDED by "Match UX" further
+> down (Decision 105): default zoom is now defined by a minimum tile size
+> (≥56px) rather than a fixed midpoint/starting-row framing. Everything else
+> here — pinch math, pivot, auto-pan gating, static-during-opponent-turns —
+> stands; Match UX extends the reveal-pulse behavior with an opt-in
+> tap-to-view, it does not change it.
+
 - **Zoom type:** continuous pinch (not discrete steps)
 - **Formula:** `orthoSize -= pinchDelta * 0.5f * orthoSize` (exponential feel)
 - **Lerp speed:** 12/sec to target
@@ -496,6 +503,12 @@ Shield (held or not).
 
 ### Tile Reveal Feedback
 
+> SUPERSEDED by "Match UX" further down (Decision 105), which splits this by
+> audience (revealer vs opponents) and by tile significance (special tiles get
+> a compact card; plain grass/sand only flip) rather than one animation for
+> everyone. The underlying flip/scale beat and the device-local disable
+> setting (Decision 053) are still the mechanism underneath both cases.
+
 When a tile is revealed (permanent, step-only — see Fog of War), it plays a
 brief flip/scale animation showing its content — a quick "what happened"
 beat (Decision 052). Landmark tiles may add a short auto-zoom emphasis
@@ -510,6 +523,12 @@ reduced motion, animation speed, and the tile-reveal-animation toggle.
 Adjusting them on one device does not affect another.
 
 ### Turn Transition
+
+> Extended by "Match UX" further down (Decision 105): the own-color/neutral
+> banner tint, the pulse-on-tap-while-waiting affordance, the active-player
+> ring, and the opponent's-last-move path-glow are new detail layered onto
+> this, not a replacement for it — the pan/banner/auto-dismiss behavior below
+> is unchanged.
 
 Active player avatar pulses in top bar. On your turn start: 450ms EaseOutQuad pan if explorers off-screen, parchment banner "Your Turn / Turn N" slides down and auto-dismisses after 1.2s or on tap. Async mode: opponent's full turn replays as a 2–3s animation when you open the game.
 
@@ -528,6 +547,71 @@ Crossing onto base with inventory → 1.2s brass fanfare, scoring items float fr
 ### End of Match / Victory
 
 Slow-motion zoom on winning explorer's base. Orchestral stinger. Confetti in player color. Replay of winning move or final score tiles flying in one by one. Results screen: final scores, MVP highlight, rematch + share + return-to-lobby. Match log persisted for post-game review.
+
+---
+
+## Match UX — camera, input, turn handoff, reveal feedback, attention system
+
+Locked as a model (Decision 105). Client-side over the existing shared-fog
+reveal events (Decision 050) — no new server state. Camera default and
+hit-snap are first-UX-sprint candidates since they address v1 tap friction
+directly; everything else here is post-fun-gate implementation.
+
+### Default camera
+
+Default zoom is defined by a minimum tile size, not a fixed board fraction:
+tiles render at ≥56px on a typical phone, own base at the bottom of the view.
+Full-board overview is reached by pinching out; the zoomed-in interaction
+level is the default a match opens on. Rationale: 48dp is the minimum
+reliable touch target, and fitting an entire 13×13 board on a phone screen
+puts tiles below that floor.
+
+### Input — hit-snap
+
+The existing confirm-by-consequence model (tap → tinted legal destinations →
+tap destination → confirm/auto-commit) is unchanged. Legal-move highlight
+tiles gain a HIT area roughly 30% larger than their visual tile, and a tap
+landing in that margin snaps to the nearest legal tile rather than missing.
+
+### Turn handoff
+
+- The turn banner is tinted the local player's own color on their turn, and
+  neutral while waiting.
+- Tapping anything while waiting pulses the banner — input is never silently
+  dropped, even when it isn't your turn.
+- Turn start plays a haptic pulse plus the banner animation.
+- The opponent's last move path-glows for ~1s when your turn starts. An
+  auto-pan to that move is allowed here specifically — turn start is already
+  a context switch, so panning to show what just happened does not cost the
+  player anything they weren't already reorienting around.
+
+### Active-player ring
+
+The explorers belonging to whoever's turn it is carry a pulsing ring in that
+player's own color (red ring on red's turn, and so on) — never yellow or
+gold, which is reserved exclusively for treasure. Scales to 4 players. Its
+job is narrow and specific: show at a glance which opponent is currently
+acting, not general status.
+
+### Reveal feedback — asymmetric by audience
+
+- **Revealer:** a compact bottom card, but only for tiles that matter — trap,
+  cart, spyglass, ruins, or any treasure. Art, name, one-line effect, ~2s
+  auto-dismiss. A plain grass or sand tile just flips, no card.
+- **Opponents:** a slim, non-blocking top banner instead — enough to register
+  that something happened without interrupting whatever they're doing.
+
+### Attention invitation, never camera theft
+
+An opponent's treasure reveal adds a tap-to-view affordance to their banner
+("RED found a Chest — View"); tapping it pans the viewer's own camera there.
+If the reveal is outside the current viewport, a small pulsing treasure icon
+sits at the screen edge pointing toward it for a few seconds instead of
+panning automatically. The game never force-moves a non-acting player's
+camera while they're waiting — interrupting an opponent's planning to show
+them something is a worse cost than the visibility gained by showing it.
+This composes with Camera Behavior's existing static-during-opponent-turns
+rule rather than overriding it: the invitation is always opt-in.
 
 ---
 
