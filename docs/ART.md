@@ -27,6 +27,18 @@ marked provisional. Production art is gated behind fun-gate v2 per the roadmap.
 - This reference is direction only. Production sprites are authored separately
   once the art-production pipeline is decided (end of phase 1), gated behind
   fun-gate v2.
+- **Approved full-board reference mockup:** a close-zoom Angular Expedition
+  composition — fog at ~60% near-black with faint texture, a revealed island
+  of self-contained tiles, a warm amber chest, a 3-coin overlapping cluster,
+  an artifact on ruins, two-color pawns with a carried-treasure pin,
+  active-player rings, ships on the water frame, and a minimal floating HUD.
+  This is the PRESENTATION/OVERVIEW reference and a phase-5 store-screenshot
+  candidate — it is NOT the default camera framing. The default play camera
+  sits one step closer than this mockup (≥56px tiles, board extending past
+  the viewport — see GDD "Match UX"). Do not build the camera to match this
+  mockup.
+- **Active-player ring:** player-colored, slow pulse (~1.2s cycle, subtle
+  scale, no hue shift). Never gold — gold is reserved for treasure.
 
 ## Core style rules (locked)
 
