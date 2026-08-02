@@ -2423,3 +2423,70 @@ table marked superseded for launch scope).
 Security: none — design scope only. Spyglass reveals are server-authoritative
 like every other reveal, and reveal nothing that shared fog did not already make
 public.
+
+## 104 — Treasure carry & pickup model: capacity 1, tile contents list, automatic pickup (2026-08-02)
+
+Status: ADOPTED as a model. Every mechanic is post-fun-gate implementation —
+locked now so art and server work build against one truth rather than two.
+Supersedes the GDD Inventory section (3 coins + 1 other, 5 + 2 with bag). The
+full model is written up in docs/GDD.md "Treasure carry & pickup model"; this
+entry records the reasoning and what it displaces.
+
+**Carry capacity is 1 treasure per explorer, and this is the load-bearing
+choice.** Everything else here follows from it. One slot forces a round trip
+per treasure; round trips create predictable routes; predictable routes create
+interception, which is where the tension of a treasure race actually lives.
+Multi-carry collapses that into a single hoarding run that ends the match with
+one long walk, and it makes every combat a jackpot rather than a setback.
+
+**Tiles hold a contents LIST.** Decision 102 established treasure as content on
+a tile rather than a terrain type; this extends it from one entity to several.
+The generator places 1 commonly, 2–3 rarely and coins only, with chests always
+singular. Because pickup takes one item and only when empty-handed, a rich tile
+stays rich — and under shared fog (Decision 050) that remainder is permanently
+public. That is deliberate: visible loot piles become magnets, and magnets
+become ambush spots. It is the map generating its own contested ground without
+a single scripted objective.
+
+**Pickup is automatic and silent** — on entering with hands empty, highest tier
+first when mixed, never while carrying, no dialogs. Walking over a loaded tile
+while carrying is free, so a full explorer can still cross contested ground
+without being forced to interact.
+
+**Swamp becomes enforceable.** Decision 103 specified "treasure cannot be
+CARRIED through" swamp, which is a statement about outcomes; this refines it to
+a rule the server can actually check: an explorer carrying treasure cannot
+ENTER a swamp tile, rejected at move validation. Cart pushes carry the treasure
+along with the explorer; Trap does not strip it.
+
+**What this displaces.**
+- The GDD Inventory model (3 coins + 1 other) is superseded outright.
+- The **Treasure Bag** has nothing left to expand — its entire function was
+  raising a multi-slot cap that no longer exists. It is not retired here
+  (that needs its own decision: repurpose, or remove including the `bag`
+  registry entry and `hasBag` equip flag), but it is inert under this model.
+- CLAUDE.md's Game Rules invariants still state "Inventory: 3 coins + 1 other
+  (5+2 with bag)" and "Bag is per-explorer not per-player". Both are now
+  contradicted and need updating when this is implemented.
+- Server state does not match this model yet: `ExplorerSchema` carries
+  `coinCount`/`hasBag`, `GameState` carries `otherItems[]`, and a tile holds a
+  single `treasureType` string rather than a contents list. Moving to
+  `tile.contents[]` and `explorer.carrying | null` is a schema change, not a
+  rules tweak.
+- The `coin` registry entry rolls `valueRange: [1, 3]`, which conflicts with the
+  provisional flat coin = 1 here. Reconcile when values are tuned.
+
+**Provisional scoring values** — coin 1, artifact 3, chest 5 — are explicitly
+placeholders to be tuned after playtest, not part of the locked model.
+
+**Rendering rules** (also locked): overlapping mini-cluster for multiple
+treasures, never number badges on the board; carried treasure as a ~30% mini
+icon pinned top-right of the explorer sprite; a score-pop on delivery. These
+sit under the Angular Expedition direction in docs/ART.md and inherit its
+legibility constraints.
+
+Documentation: this entry; docs/GDD.md (new "Treasure carry & pickup model"
+section; Inventory and Treasure Bag marked superseded).
+Security: none — design model only. Pickup, drop, and delivery are all
+server-validated and action-logged (Decision 093); the client renders carry
+state and requests actions, exactly as now.

@@ -157,6 +157,11 @@ Base appearance depends on map theme:
 
 ## Inventory
 
+> SUPERSEDED by "Treasure carry & pickup model" below (Decision 104). Carry
+> capacity is 1 treasure per explorer, which removes the multi-slot inventory
+> and leaves the Treasure Bag with nothing to expand. Both subsections are kept
+> for history until the bag is either repurposed or retired by its own decision.
+
 ### Default Capacity
 
 - Max **3 coins** + max **1 other item**
@@ -169,6 +174,74 @@ Base appearance depends on map theme:
 | **Capacity with bag** | Max 5 coins + max 2 other items                                       |
 | **On delivery**       | Bag disappears when explorer carries treasure back to base            |
 | **On attack**         | Explorer drops all treasure, bag disappears, explorer returns to base |
+
+---
+
+## Treasure carry & pickup model
+
+Locked as a model (Decision 104); all mechanics below are post-fun-gate
+implementation. Locked now so art and server work build against one truth.
+
+### Carry capacity — 1 treasure per explorer
+
+Non-negotiable core rule. Trips create routes, routes create interception.
+Multi-carry collapses the race into a single hoarding run.
+
+### Tile contents
+
+- A tile holds a contents LIST of treasure entities (extends Decision 102:
+  treasure is content on a tile, and a tile may hold more than one).
+- The generator places 1 (common) or, rarely, 2–3 (coins only). A chest is
+  always singular.
+
+### Pickup
+
+- Automatic on entering a tile, if hands are empty. No pickup dialogs.
+- Takes the highest tier present when the tile holds mixed treasure.
+- NEVER picks up while carrying — walking over a loaded tile is free.
+- The remainder stays on the tile, visible to all players permanently. Under
+  shared fog this is public information by design: visibly rich tiles become
+  magnets, and therefore ambush spots.
+
+### Drop and loss
+
+- Drop is a voluntary turn action onto the explorer's current tile, allowed
+  only where the terrain is treasure-eligible (Decision 103).
+- Losing combat drops the carried treasure onto the loser's tile — the existing
+  anti-camping rule, unchanged.
+
+### Terrain and tile interactions
+
+- **Swamp:** an explorer carrying treasure cannot ENTER a swamp tile, enforced
+  at move validation. This is how Decision 103's "treasure cannot be carried
+  through swamp" is actually implemented.
+- **Cart:** a push carries the explorer's treasure with it.
+- **Trap:** does not strip treasure.
+
+### Delivery and scoring
+
+Delivering at the explorer's own base consumes the treasure entity and
+increments the server-side score. Provisional values — tune after playtest:
+
+| Treasure | Points |
+|----------|--------|
+| Coin     | 1      |
+| Artifact | 3      |
+| Chest    | 5      |
+
+### Server model
+
+- `tile.contents[]`, `explorer.carrying | null`.
+- Pickup, drop, and delivery are validated server-side and logged as action-log
+  verdicts (Decision 093).
+
+### Rendering
+
+- Multiple treasures on one tile render as an overlapping mini-cluster. Never
+  number badges on the board.
+- Carried treasure renders as a mini icon pinned to the explorer sprite (~30%
+  size, top-right).
+- Delivery plays a score-pop.
 
 ---
 
