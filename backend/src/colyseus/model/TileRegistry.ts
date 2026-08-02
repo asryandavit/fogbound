@@ -25,10 +25,12 @@ export const TILE_DEFINITIONS = [
   { id: 'arrow_south',  category: 'movement',    behavior: 'arrow_push',        spawnWeight: 0.01,   direction: 'south' },
   { id: 'arrow_east',   category: 'movement',    behavior: 'arrow_push',        spawnWeight: 0.01,   direction: 'east'  },
   { id: 'arrow_west',   category: 'movement',    behavior: 'arrow_push',        spawnWeight: 0.01,   direction: 'west'  },
-  { id: 'cannon_north', category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0.0075, direction: 'north' },
-  { id: 'cannon_south', category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0.0075, direction: 'south' },
-  { id: 'cannon_east',  category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0.0075, direction: 'east'  },
-  { id: 'cannon_west',  category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0.0075, direction: 'west'  },
+  // spawnWeight 0 = expansion scope, not launch (Decision 103). The definitions
+  // stay so cannon_launch keeps resolving for any board that already holds one.
+  { id: 'cannon_north', category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0,      direction: 'north' },
+  { id: 'cannon_south', category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0,      direction: 'south' },
+  { id: 'cannon_east',  category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0,      direction: 'east'  },
+  { id: 'cannon_west',  category: 'movement',    behavior: 'cannon_launch',     spawnWeight: 0,      direction: 'west'  },
   { id: 'trap',         category: 'hazard',      behavior: 'immobilize',        spawnWeight: 0.04    },
 ] as const satisfies readonly TileDefinition[];
 

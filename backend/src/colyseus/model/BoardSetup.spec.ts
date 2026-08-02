@@ -35,4 +35,17 @@ describe('placeTreasure', () => {
     const b = placeTreasure(4, 4, sequenceRng(values));
     expect(a).toEqual(b);
   });
+
+  it('never places a cannon — every roll in [0,1) sweeps past it (Decision 103)', () => {
+    // 1000 evenly-spaced rolls cover every band of the cumulative weight table,
+    // so a nonzero cannon weight anywhere in it would land at least one tile.
+    const rolls = Array.from({ length: 1000 }, (_, i) => i / 1000);
+    const types = new Set(
+      rolls.flatMap(r => placeTreasure(3, 1, sequenceRng([r, 0.5])).map(p => p.treasureType)),
+    );
+    expect([...types].filter(t => t.startsWith('cannon_'))).toEqual([]);
+    expect(types).toContain('coin');
+    expect(types).toContain('arrow_north');
+    expect(types).toContain('trap');
+  });
 });

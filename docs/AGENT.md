@@ -1037,6 +1037,25 @@ Tech debt (not blocking, tracked for later):
   on-device version of the repro — no emulator was attached; folded into
   the Fun-Gate V2 checklist below.
 
+Doc-debt found while landing Decision 103, deliberately deferred to after
+fun-gate v2 (none of it affects the playtest — all three are docs describing
+the code inaccurately, not code misbehaving):
+- `docs/GDD.md` Tile Library intro still says "Today only Coins and Shields
+  (Tier 1, Treasure/Combat) are implemented." Stale since Decision 086 —
+  arrow, cannon, and trap are all in `TileRegistry.ts`. Needs rewording that
+  also accounts for cannon now being defined-but-unspawnable (Decision 103).
+- Cart vs `arrow_push`: Decision 103 records Cart as the existing arrow
+  behavior re-themed. If Cart is meant to be a genuinely different mechanic
+  (rails, multi-tile push, rider state), 103's terrain table and the registry
+  both need a real definition instead of a rename. Needs a design answer
+  before any implementation task picks it up.
+- `Decision 021` miscitation: Decision 047 justifies two TileMapLayer nodes
+  with "(Decision 021 perf rule)", and `docs/ARCHITECTURE.md:122` repeats it,
+  but Decision 021 is *Tile Shape: Squares v1* and contains no perf rule.
+  `docs/ART.md` deliberately cites 047 instead. Both call sites need
+  correcting — DECISIONS.md is append-only, so 047's line likely needs a
+  superseding note rather than an edit.
+
 Parked for post-fun-gate (from v1 playtest findings, still open):
 - Treasure affordance — yellow tile not readable as a pick-up.
 - Treasure variety + score visibility + carry feedback (GDD backlog).

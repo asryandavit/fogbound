@@ -42,11 +42,17 @@ describe('new tile definitions', () => {
     expect(def?.spawnWeight).toBeGreaterThan(0);
   });
 
-  it('cannon_east is defined with behavior cannon_launch and direction east', () => {
+  it('cannon_east is still defined with behavior cannon_launch and direction east', () => {
     const def = getTileDefinition('cannon_east');
     expect(def?.behavior).toBe('cannon_launch');
     expect((def as { direction?: string })?.direction).toBe('east');
-    expect(def?.spawnWeight).toBeGreaterThan(0);
+  });
+
+  it('every cannon variant is defined but unspawnable — expansion scope (Decision 103)', () => {
+    for (const id of ['cannon_north', 'cannon_south', 'cannon_east', 'cannon_west']) {
+      expect(getTileDefinition(id)).toBeDefined();
+      expect(getTileDefinition(id)?.spawnWeight).toBe(0);
+    }
   });
 
   it('trap is defined with behavior immobilize', () => {
@@ -56,11 +62,16 @@ describe('new tile definitions', () => {
     expect(def?.spawnWeight).toBeGreaterThan(0);
   });
 
-  it('getSpawnableTreasureTiles includes arrow, cannon, and trap variants', () => {
+  it('getSpawnableTreasureTiles includes arrow and trap variants, but no cannon', () => {
     const ids = getSpawnableTreasureTiles().map(d => d.id);
     expect(ids).toContain('arrow_north');
-    expect(ids).toContain('cannon_west');
     expect(ids).toContain('trap');
+    expect(ids.filter(id => id.startsWith('cannon_'))).toEqual([]);
+  });
+
+  it('no out-of-launch-scope tile is spawnable (Decision 103 expansion list)', () => {
+    const spawnable = getSpawnableTreasureTiles().map(d => d.id);
+    expect(spawnable.some(id => /^(cannon_|crocodile|rum|ice|lava)/.test(id))).toBe(false);
   });
 
   it('getSpawnableTreasureTiles still starts with coin then shield', () => {

@@ -73,14 +73,14 @@ Fifteen entries exist today (6 original + 9 added in Decision 086):
 | bag | special | grants_equip, hasBag | 0 | catalog-only (Decision 082) |
 | boat | movement | grants_equip, hasBoat | 0 | catalog-only (Decision 082) |
 | arrow_north, arrow_south, arrow_east, arrow_west | movement | arrow_push | 0.01 each (0.04 total) | pushes explorer 1 tile in direction; stays put if OOB or blocked |
-| cannon_north, cannon_south, cannon_east, cannon_west | movement | cannon_launch | 0.0075 each (0.03 total) | launches to last walkable tile in direction; stays put at edge |
+| cannon_north, cannon_south, cannon_east, cannon_west | movement | cannon_launch | 0 (was 0.0075 each) | launches to last walkable tile in direction; stays put at edge. Zeroed for expansion scope (Decision 103) — definitions retained so an existing board still resolves the behavior |
 | trap | hazard | immobilize | 0.04 | sets immobilizedUntilTurn = turnNumber + playerCount; prevents movement for one player-turn |
 
 `getTileDefinition(id)` is the lookup `GameRules`/`BotAI` use instead of a
 literal-string comparison. `getSpawnableTreasureTiles()` returns the
 `spawnWeight > 0`, non-terrain entries in declaration order (coin, shield,
-arrow_north, arrow_south, arrow_east, arrow_west, cannon_north, cannon_south,
-cannon_east, cannon_west, trap) —
+arrow_north, arrow_south, arrow_east, arrow_west, trap — the cannon variants
+drop out of this list at weight 0) —
 `BoardSetup.placeTreasure` walks this list as a cumulative-probability
 table, so that order is load-bearing (see `TileRegistry.spec.ts`'s explicit
 ordering test).
